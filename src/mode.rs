@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+pub const MODE_COUNT: usize = 3;
 pub const SPRINT_LINES: u32 = 40;
 pub const ULTRA_TIME: Duration = Duration::from_secs(120);
 
@@ -11,7 +12,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub const ALL: [Self; 3] = [Self::Marathon, Self::Sprint, Self::Ultra];
+    pub const ALL: [Self; MODE_COUNT] = [Self::Marathon, Self::Sprint, Self::Ultra];
 
     pub const fn label(self) -> &'static str {
         match self {

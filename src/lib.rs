@@ -6,6 +6,7 @@ mod input;
 mod kicks;
 mod mode;
 mod piece;
+mod records;
 mod scoring;
 mod theme;
 mod tspin;
