@@ -51,9 +51,9 @@ fn letter_action(character: char) -> Option<Action> {
     match character.to_ascii_lowercase() {
         'a' => Some(Action::MoveLeft),
         'd' => Some(Action::MoveRight),
-        's' => Some(Action::SoftDrop),
-        'x' | 'k' | 'l' => Some(Action::RotateClockwise),
-        'z' | 'h' | 'j' => Some(Action::RotateCounterClockwise),
+        's' | 'j' => Some(Action::SoftDrop),
+        'x' | 'l' => Some(Action::RotateClockwise),
+        'z' | 'h' => Some(Action::RotateCounterClockwise),
         'c' => Some(Action::Hold),
         'p' => Some(Action::TogglePause),
         'r' => Some(Action::Restart),
@@ -110,19 +110,17 @@ mod tests {
     }
 
     #[test]
-    fn hjkl_keys_rotate() {
-        for character in ['h', 'j'] {
-            assert_eq!(
-                action(key(KeyCode::Char(character))),
-                Some(Action::RotateCounterClockwise)
-            );
-        }
-        for character in ['k', 'l'] {
-            assert_eq!(
-                action(key(KeyCode::Char(character))),
-                Some(Action::RotateClockwise)
-            );
-        }
+    fn vim_keys_map_to_rotation_and_soft_drop() {
+        assert_eq!(
+            action(key(KeyCode::Char('h'))),
+            Some(Action::RotateCounterClockwise)
+        );
+        assert_eq!(
+            action(key(KeyCode::Char('l'))),
+            Some(Action::RotateClockwise)
+        );
+        assert_eq!(action(key(KeyCode::Char('j'))), Some(Action::SoftDrop));
+        assert_eq!(action(key(KeyCode::Char('k'))), None);
     }
 
     #[test]
