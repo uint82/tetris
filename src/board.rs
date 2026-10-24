@@ -59,6 +59,12 @@ impl Board {
         cleared
     }
 
+    pub fn full_rows(&self) -> u32 {
+        (0..HEIGHT)
+            .filter(|&y| self.row_full(y))
+            .fold(0, |rows, y| rows | (1u32 << y))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.cells.iter().all(|row| row.iter().all(Option::is_none))
     }
@@ -106,6 +112,16 @@ mod tests {
         let (x, y) = piece.cells()[0];
         board.set(x as usize, y as usize, PieceKind::I);
         assert!(!board.fits(&piece));
+    }
+
+    #[test]
+    fn full_rows_are_reported_as_a_mask() {
+        let mut board = Board::new();
+        for x in 0..WIDTH {
+            board.set(x, HEIGHT - 1, PieceKind::I);
+            board.set(x, HEIGHT - 3, PieceKind::T);
+        }
+        assert_eq!(board.full_rows(), (1 << (HEIGHT - 1)) | (1 << (HEIGHT - 3)));
     }
 
     #[test]

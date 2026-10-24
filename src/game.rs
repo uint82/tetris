@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::bag::Bag;
 use crate::board::{Board, HIDDEN_ROWS};
+use crate::effects::Effects;
 use crate::kicks;
 use crate::mode::Mode;
 use crate::piece::{ActivePiece, PieceKind, Rotation};
@@ -52,6 +53,7 @@ pub struct Game {
     lock_elapsed: Duration,
     lock_resets: u8,
     last_action_rotation: bool,
+    effects: Effects,
 }
 
 impl Game {
@@ -79,6 +81,7 @@ impl Game {
             lock_elapsed: Duration::ZERO,
             lock_resets: 0,
             last_action_rotation: false,
+            effects: Effects::default(),
         }
     }
 
@@ -87,6 +90,7 @@ impl Game {
             return;
         }
         self.elapsed += dt;
+        self.effects.update(dt);
         if self.finish_if_complete() {
             return;
         }
@@ -158,6 +162,10 @@ impl Game {
         &self.stats
     }
 
+    pub fn effects(&self) -> &Effects {
+        &self.effects
+    }
+
     pub fn next(&self) -> impl Iterator<Item = PieceKind> + '_ {
         self.queue.iter().copied()
     }
@@ -203,6 +211,7 @@ impl Game {
     fn hard_drop(&mut self) {
         let distance = self.drop_distance();
         if distance > 0 {
+            self.effects.start_hard_drop(self.active, distance);
             self.active = self.active.moved(0, distance);
             self.stats.add_hard_drop(distance as u32);
             self.last_action_rotation = false;
@@ -283,7 +292,11 @@ impl Game {
         }
         self.board.lock(&self.active);
         let tspin = tspin::detect(&self.board, &self.active, self.last_action_rotation);
+        let rows = self.board.full_rows();
         let lines = self.board.clear_lines();
+        if rows != 0 {
+            self.effects.start_line_clear(rows);
+        }
         let perfect = self.board.is_empty();
         self.stats.register(Clear {
             lines,

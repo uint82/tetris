@@ -44,6 +44,22 @@ fn hard_drop_locks_the_active_piece() {
     assert_eq!(game.active().kind, expected_next);
     assert_eq!(filled_cells(&game), 4);
     assert!(game.stats().score() > 0);
+    assert!(game.effects().hard_drop().is_some());
+}
+
+#[test]
+fn clearing_a_line_starts_a_flash() {
+    let mut game = new_game();
+    for x in 0..board::WIDTH {
+        if x != 4 && x != 5 {
+            game.board.set(x, board::HEIGHT - 1, PieceKind::I);
+        }
+    }
+    place_piece(&mut game, PieceKind::O, 4, 2);
+    game.apply(Action::HardDrop);
+    assert_eq!(game.stats().lines(), 1);
+    let flash = game.effects().line_clear().expect("line clear effect");
+    assert!(flash.contains(board::HEIGHT - 1));
 }
 
 #[test]
