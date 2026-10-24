@@ -4,6 +4,7 @@ A complete terminal Tetris game built with Rust and Ratatui.
 
 ## Features
 
+- Marathon, Sprint, and Ultra game modes
 - Super Rotation System with wall kicks
 - Seven-bag randomizer
 - Hold piece and five-piece preview queue
@@ -11,7 +12,7 @@ A complete terminal Tetris game built with Rust and Ratatui.
 - T-spin detection
 - Combos, back-to-back clears, and perfect clears
 - Guideline gravity and level progression
-- Pause, restart, and game over screens
+- Pause, restart, and result screens
 
 ## Requirements
 
@@ -34,7 +35,25 @@ cargo build --release
 ./target/release/tetris
 ```
 
+## Game Modes
+
+- Marathon: endless play until you top out
+- Sprint: clear 40 lines as fast as possible
+- Ultra: score as much as possible in two minutes
+
 ## Controls
+
+### Mode Selection
+
+| Key | Action |
+| --- | --- |
+| Up arrow or K | Select previous mode |
+| Down arrow or J | Select next mode |
+| Enter or Space | Start selected mode |
+| 1, 2, or 3 | Start Marathon, Sprint, or Ultra |
+| Q or Ctrl+C | Quit |
+
+### In Game
 
 | Key | Action |
 | --- | --- |
@@ -47,6 +66,7 @@ cargo build --release
 | C | Hold piece |
 | P or Esc | Pause or resume |
 | R or Enter | Restart |
+| M | Return to menu from pause or results |
 | Q or Ctrl+C | Quit |
 
 ## Development
