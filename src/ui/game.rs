@@ -182,8 +182,8 @@ fn render_stats(frame: &mut Frame, area: Rect, game: &Game) {
 
 fn render_help(frame: &mut Frame, area: Rect) {
     let lines = vec![
-        Line::from("Arrows move  Down/J soft  X/Z/H/L rotate").style(theme::help()),
-        Line::from("Space hard drop  C hold  P pause  Q quit").style(theme::help()),
+        Line::from("Arrows/H/L move  J/K/X/Z rotate").style(theme::help()),
+        Line::from("Down/S soft  Space drop  C hold  P pause").style(theme::help()),
     ];
     frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
 }
