@@ -27,8 +27,8 @@ fn letter_action(character: char) -> Option<Action> {
         'a' => Some(Action::MoveLeft),
         'd' => Some(Action::MoveRight),
         's' => Some(Action::SoftDrop),
-        'x' => Some(Action::RotateClockwise),
-        'z' => Some(Action::RotateCounterClockwise),
+        'x' | 'k' | 'l' => Some(Action::RotateClockwise),
+        'z' | 'h' | 'j' => Some(Action::RotateCounterClockwise),
         'c' => Some(Action::Hold),
         'p' => Some(Action::TogglePause),
         'r' => Some(Action::Restart),
@@ -61,6 +61,22 @@ mod tests {
         );
         assert_eq!(action(key(KeyCode::Char('c'))), Some(Action::Hold));
         assert_eq!(action(key(KeyCode::Char('P'))), Some(Action::TogglePause));
+    }
+
+    #[test]
+    fn hjkl_keys_rotate() {
+        for character in ['h', 'j'] {
+            assert_eq!(
+                action(key(KeyCode::Char(character))),
+                Some(Action::RotateCounterClockwise)
+            );
+        }
+        for character in ['k', 'l'] {
+            assert_eq!(
+                action(key(KeyCode::Char(character))),
+                Some(Action::RotateClockwise)
+            );
+        }
     }
 
     #[test]
