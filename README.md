@@ -4,25 +4,25 @@ A complete terminal Tetris game built with Rust and Ratatui.
 
 ## Features
 
-- Marathon, Sprint, Ultra, and a daily challenge
+- Marathon, Sprint, Time, Classic, and a daily challenge
 - Per-mode personal bests saved between sessions
 - Fair 3-2-1 countdown before timed runs
+- NES-style Classic rules with classic scoring
 - Date-seeded daily challenge with a daily best
-- Super Rotation System with wall kicks
-- Seven-bag randomizer
-- Hold piece and five-piece preview queue
-- Ghost piece and lock delay with move resets
+- Super Rotation System with wall kicks for modern modes
+- Seven-bag randomizer for modern modes
+- Hold, ghost, and lock delay for modern modes
+- Five-piece preview queue
 - Line clear flashes and hard drop trails
-- T-spin detection
-- Combos, back-to-back clears, and perfect clears
-- Guideline gravity and level progression
+- T-spin, combo, back-to-back, and perfect clear scoring for modern modes
+- Guideline and NES-style gravity
 - Pause, restart, and result screens
 
 ## Requirements
 
 - A recent stable Rust toolchain
 - A terminal with Unicode support
-- At least 42 columns and 24 rows
+- At least 42 columns and 26 rows
 
 ## Getting Started
 
@@ -43,14 +43,15 @@ cargo build --release
 
 - Marathon: endless play until you top out
 - Sprint: clear 40 lines as fast as possible
-- Ultra: score as much as possible in two minutes
-- Daily challenge: a seeded two-minute score run using the current UTC date
+- Time: score as much as possible in two minutes
+- Classic: endless NES-style play with no hold, ghost, hard drop, wall kicks, or lock delay
+- Daily challenge: a seeded two-minute Time run using the current UTC date
 
-Marathon starts immediately. Sprint, Ultra, and the daily challenge start after a 3-2-1 countdown, with their clocks starting at zero.
+Marathon and Classic start immediately. Sprint, Time, and the daily challenge start after a 3-2-1 countdown, with their clocks starting at zero.
 
 ## Personal Bests
 
-Marathon and Ultra track the highest score. Sprint tracks the fastest completed run. The daily challenge tracks the highest score for the current UTC date. Records are saved automatically in the platform data directory.
+Marathon, Time, and Classic track the highest score. Sprint tracks the fastest completed run. The daily challenge tracks the highest score for the current UTC date. Records are saved automatically in the platform data directory.
 
 ## Controls
 
@@ -61,7 +62,7 @@ Marathon and Ultra track the highest score. Sprint tracks the fastest completed 
 | Up arrow or K | Select previous option |
 | Down arrow or J | Select next option |
 | Enter or Space | Start selected option |
-| 1, 2, 3, or 4 | Start Marathon, Sprint, Ultra, or the daily challenge |
+| 1, 2, 3, 4, or 5 | Start Marathon, Sprint, Time, Classic, or the daily challenge |
 | D | Start the daily challenge |
 | Q or Ctrl+C | Quit |
 
@@ -80,6 +81,8 @@ Marathon and Ultra track the highest score. Sprint tracks the fastest completed 
 | R or Enter | Restart |
 | M | Return to menu from pause or results |
 | Q or Ctrl+C | Quit |
+
+Classic uses NES-style scoring, a classic randomizer, and level-based gravity. Hold, ghost, hard drop, wall kicks, lock delay, T-spin scoring, and combo scoring are disabled.
 
 ## Development
 
