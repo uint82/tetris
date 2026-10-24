@@ -196,7 +196,11 @@ fn render_overlay(
     new_best: bool,
 ) {
     match game.status() {
-        Status::Playing => {}
+        Status::Playing => {
+            if let Some(number) = game.countdown_number() {
+                render_countdown(frame, area, number);
+            }
+        }
         Status::Paused => {
             render_popup(frame, area, " PAUSED ", theme::pause_color(), pause_lines())
         }
@@ -215,6 +219,15 @@ fn render_overlay(
             result_lines(game, bests, new_best),
         ),
     }
+}
+
+fn render_countdown(frame: &mut Frame, area: Rect, number: u32) {
+    let lines = vec![
+        Line::default(),
+        Line::from(number.to_string()).style(theme::accent()),
+        Line::default(),
+    ];
+    render_popup(frame, area, " READY ", theme::countdown_color(), lines);
 }
 
 fn finished_title(mode: Mode) -> &'static str {
@@ -380,6 +393,7 @@ fn result_lines(game: &Game, bests: &PersonalBests, new_best: bool) -> Vec<Line<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::countdown::COUNTDOWN_TIME;
     use crate::game::Action;
     use crate::mode::ULTRA_TIME;
     use ratatui::Terminal;
@@ -457,6 +471,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let mut game = Game::new(Mode::Ultra);
         let bests = PersonalBests::default();
+        game.update(COUNTDOWN_TIME);
         game.update(ULTRA_TIME);
         terminal
             .draw(|frame| draw(frame, &game, &bests, true))

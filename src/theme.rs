@@ -57,6 +57,10 @@ pub fn pause_color() -> Color {
     Color::Yellow
 }
 
+pub fn countdown_color() -> Color {
+    Color::Yellow
+}
+
 pub fn game_over_color() -> Color {
     Color::Red
 }
