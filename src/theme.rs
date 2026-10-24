@@ -36,6 +36,15 @@ pub fn ghost() -> Style {
     Style::new().fg(Color::Rgb(75, 80, 100))
 }
 
+pub fn line_flash(bright: bool) -> Style {
+    let color = if bright {
+        Color::White
+    } else {
+        Color::Rgb(255, 190, 60)
+    };
+    Style::new().fg(color).add_modifier(Modifier::BOLD)
+}
+
 pub fn help() -> Style {
     Style::new().fg(Color::DarkGray)
 }

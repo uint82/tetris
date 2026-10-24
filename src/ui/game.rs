@@ -6,6 +6,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
 use super::common::{format_best, format_duration, render_too_small};
 use crate::board::{Board, HEIGHT, HIDDEN_ROWS, VISIBLE_HEIGHT, WIDTH};
+use crate::effects::Effects;
 use crate::game::{Game, NEXT_COUNT, Status};
 use crate::mode::Mode;
 use crate::piece::{ActivePiece, PieceKind, Rotation};
@@ -101,10 +102,11 @@ fn timer_value(game: &Game) -> String {
 fn board_lines(game: &Game) -> Vec<Line<'static>> {
     let active = game.active();
     let ghost = game.ghost();
+    let effects = game.effects();
     (HIDDEN_ROWS..HEIGHT)
         .map(|y| {
             let spans = (0..WIDTH)
-                .map(|x| board_span(game.board(), &active, &ghost, x, y))
+                .map(|x| board_span(game.board(), &active, &ghost, effects, x, y))
                 .collect::<Vec<_>>();
             Line::from(spans)
         })
@@ -115,14 +117,25 @@ fn board_span(
     board: &Board,
     active: &ActivePiece,
     ghost: &ActivePiece,
+    effects: &Effects,
     x: usize,
     y: usize,
 ) -> Span<'static> {
+    if let Some(flash) = effects.line_clear()
+        && flash.contains(y)
+    {
+        return flash_span(flash.is_bright());
+    }
     if active.occupies(x as i32, y as i32) {
         return block_span(active.kind, true);
     }
     if let Some(kind) = board.cell(x, y) {
         return block_span(kind, true);
+    }
+    if let Some(trail) = effects.hard_drop()
+        && trail.contains(x, y)
+    {
+        return block_span(trail.kind(), false);
     }
     if ghost.occupies(x as i32, y as i32) {
         return ghost_span();
@@ -316,6 +329,10 @@ fn ghost_span() -> Span<'static> {
     Span::styled("░░", theme::ghost())
 }
 
+fn flash_span(bright: bool) -> Span<'static> {
+    Span::styled("██", theme::line_flash(bright))
+}
+
 fn empty_span() -> Span<'static> {
     Span::raw("  ")
 }
@@ -363,6 +380,7 @@ fn result_lines(game: &Game, bests: &PersonalBests, new_best: bool) -> Vec<Line<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::Action;
     use crate::mode::ULTRA_TIME;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -378,6 +396,36 @@ mod tests {
                 .draw(|frame| draw(frame, &game, &bests, false))
                 .expect("game renders");
         }
+    }
+
+    #[test]
+    fn effects_render_on_the_board() {
+        let board = Board::new();
+        let active = ActivePiece::new(PieceKind::T);
+        let ghost = active;
+        let mut effects = Effects::default();
+        effects.start_line_clear(1 << HIDDEN_ROWS);
+        let flash = board_span(&board, &active, &ghost, &effects, 4, HIDDEN_ROWS);
+        assert_eq!(flash.content, "██");
+        assert_eq!(flash.style, theme::line_flash(true));
+
+        let mut effects = Effects::default();
+        effects.start_hard_drop(ActivePiece::new(PieceKind::O), 3);
+        let trail = board_span(&board, &active, &ghost, &effects, 4, HIDDEN_ROWS + 3);
+        assert_eq!(trail.content, "██");
+        assert_eq!(trail.style, block_span(PieceKind::O, false).style);
+    }
+
+    #[test]
+    fn draws_hard_drop_trail() {
+        let backend = TestBackend::new(TOTAL_WIDTH, TOTAL_HEIGHT);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut game = Game::new(Mode::Marathon);
+        let bests = PersonalBests::default();
+        game.apply(Action::HardDrop);
+        terminal
+            .draw(|frame| draw(frame, &game, &bests, false))
+            .expect("effects render");
     }
 
     #[test]
