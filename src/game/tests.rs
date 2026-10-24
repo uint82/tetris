@@ -1,11 +1,16 @@
 use super::*;
 use crate::board;
+use crate::countdown::COUNTDOWN_TIME;
 use crate::mode::{Mode, SPRINT_LINES, ULTRA_TIME};
 use crate::piece::Position;
 use crate::scoring::Clear;
 
 fn new_game() -> Game {
     Game::new(Mode::Marathon)
+}
+
+fn skip_countdown(game: &mut Game) {
+    game.update(COUNTDOWN_TIME);
 }
 
 fn filled_cells(game: &Game) -> usize {
@@ -26,6 +31,45 @@ fn place_piece(game: &mut Game, kind: PieceKind, x: i32, y: i32) {
         rotation: Rotation::Spawn,
         position: Position { x, y },
     };
+}
+
+#[test]
+fn timed_modes_start_with_a_countdown() {
+    assert_eq!(Game::new(Mode::Sprint).countdown_number(), Some(3));
+    assert_eq!(Game::new(Mode::Ultra).countdown_number(), Some(3));
+    assert_eq!(Game::new(Mode::Marathon).countdown_number(), None);
+}
+
+#[test]
+fn countdown_blocks_input_and_the_clock() {
+    let mut game = Game::new(Mode::Ultra);
+    game.apply(Action::HardDrop);
+    assert_eq!(filled_cells(&game), 0);
+    game.update(Duration::from_secs(1));
+    assert_eq!(game.countdown_number(), Some(2));
+    assert_eq!(game.elapsed(), Duration::ZERO);
+    assert_eq!(game.status(), Status::Playing);
+}
+
+#[test]
+fn pause_freezes_the_countdown() {
+    let mut game = Game::new(Mode::Ultra);
+    game.update(Duration::from_secs(1));
+    game.toggle_pause();
+    game.update(Duration::from_secs(1));
+    assert_eq!(game.countdown_number(), Some(2));
+    game.toggle_pause();
+    game.update(Duration::from_secs(1));
+    assert_eq!(game.countdown_number(), Some(1));
+}
+
+#[test]
+fn countdown_releases_the_clock() {
+    let mut game = Game::new(Mode::Ultra);
+    skip_countdown(&mut game);
+    assert_eq!(game.countdown_number(), None);
+    game.update(Duration::from_secs(1));
+    assert_eq!(game.elapsed(), Duration::from_secs(1));
 }
 
 #[test]
@@ -152,6 +196,7 @@ fn locking_above_the_visible_field_ends_the_game() {
 #[test]
 fn sprint_finishes_at_the_line_goal() {
     let mut game = Game::new(Mode::Sprint);
+    skip_countdown(&mut game);
     for _ in 0..10 {
         game.stats.register(Clear {
             lines: 4,
@@ -167,6 +212,7 @@ fn sprint_finishes_at_the_line_goal() {
 #[test]
 fn ultra_finishes_at_the_time_limit() {
     let mut game = Game::new(Mode::Ultra);
+    skip_countdown(&mut game);
     game.update(ULTRA_TIME);
     assert_eq!(game.status(), Status::Finished);
     game.toggle_pause();

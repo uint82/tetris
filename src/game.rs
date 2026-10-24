@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::bag::Bag;
 use crate::board::{Board, HIDDEN_ROWS};
+use crate::countdown::Countdown;
 use crate::effects::Effects;
 use crate::kicks;
 use crate::mode::Mode;
@@ -54,6 +55,7 @@ pub struct Game {
     lock_resets: u8,
     last_action_rotation: bool,
     effects: Effects,
+    countdown: Option<Countdown>,
 }
 
 impl Game {
@@ -82,11 +84,16 @@ impl Game {
             lock_resets: 0,
             last_action_rotation: false,
             effects: Effects::default(),
+            countdown: mode.is_timed().then(Countdown::new),
         }
     }
 
     pub fn update(&mut self, dt: Duration) {
         if self.status != Status::Playing {
+            return;
+        }
+        if self.countdown.is_some() {
+            self.tick_countdown(dt);
             return;
         }
         self.elapsed += dt;
@@ -99,7 +106,7 @@ impl Game {
     }
 
     pub fn apply(&mut self, action: Action) {
-        if self.status != Status::Playing {
+        if self.status != Status::Playing || self.countdown.is_some() {
             return;
         }
         match action {
@@ -166,6 +173,10 @@ impl Game {
         &self.effects
     }
 
+    pub fn countdown_number(&self) -> Option<u32> {
+        self.countdown.as_ref().map(Countdown::number)
+    }
+
     pub fn next(&self) -> impl Iterator<Item = PieceKind> + '_ {
         self.queue.iter().copied()
     }
@@ -229,6 +240,16 @@ impl Game {
             None => self.spawn_next(),
         }
         self.can_hold = false;
+    }
+
+    fn tick_countdown(&mut self, dt: Duration) {
+        let Some(countdown) = &mut self.countdown else {
+            return;
+        };
+        countdown.update(dt);
+        if !countdown.is_active() {
+            self.countdown = None;
+        }
     }
 
     fn apply_gravity(&mut self, dt: Duration) {

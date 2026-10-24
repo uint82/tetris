@@ -1,6 +1,7 @@
 mod app;
 mod bag;
 mod board;
+mod countdown;
 mod effects;
 mod game;
 mod input;

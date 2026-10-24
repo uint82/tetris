@@ -238,6 +238,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::countdown::COUNTDOWN_TIME;
     use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
     fn key(code: KeyCode) -> KeyEvent {
@@ -246,6 +247,10 @@ mod tests {
 
     fn test_app() -> App {
         App::with_records(Records::in_memory())
+    }
+
+    fn skip_countdown(app: &mut App) {
+        app.apply_to_game(|game| game.update(COUNTDOWN_TIME));
     }
 
     fn selected_menu_mode(app: &App) -> Mode {
@@ -287,6 +292,7 @@ mod tests {
     fn menu_is_available_after_a_finished_game() {
         let mut app = test_app();
         app.handle_key(key(KeyCode::Char('3')));
+        skip_countdown(&mut app);
         app.apply_to_game(|game| game.update(crate::mode::ULTRA_TIME));
         app.handle_key(key(KeyCode::Char('m')));
         assert_eq!(selected_menu_mode(&app), Mode::Ultra);
@@ -296,6 +302,7 @@ mod tests {
     fn finished_game_updates_personal_bests() {
         let mut app = test_app();
         app.handle_key(key(KeyCode::Char('3')));
+        skip_countdown(&mut app);
         app.handle_key(key(KeyCode::Char(' ')));
         app.update(crate::mode::ULTRA_TIME);
         assert!(app.new_best);
@@ -303,6 +310,7 @@ mod tests {
 
         app.handle_key(key(KeyCode::Char('m')));
         app.handle_key(key(KeyCode::Char('3')));
+        skip_countdown(&mut app);
         app.update(crate::mode::ULTRA_TIME);
         assert!(!app.new_best);
     }

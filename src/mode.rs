@@ -34,6 +34,10 @@ impl Mode {
         self as usize
     }
 
+    pub const fn is_timed(self) -> bool {
+        matches!(self, Self::Sprint | Self::Ultra)
+    }
+
     pub const fn line_goal(self) -> Option<u32> {
         match self {
             Self::Sprint => Some(SPRINT_LINES),
@@ -108,6 +112,13 @@ mod tests {
                 assert_ne!(mode.description(), other.description());
             }
         }
+    }
+
+    #[test]
+    fn timed_modes_require_a_countdown() {
+        assert!(Mode::Sprint.is_timed());
+        assert!(Mode::Ultra.is_timed());
+        assert!(!Mode::Marathon.is_timed());
     }
 
     #[test]
