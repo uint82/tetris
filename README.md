@@ -63,12 +63,12 @@ Marathon and Ultra track the highest score. Sprint tracks the fastest completed 
 
 | Key | Action |
 | --- | --- |
-| Left arrow or A | Move left |
-| Right arrow or D | Move right |
-| Down arrow, S, or J | Soft drop |
+| Left arrow, A, or H | Move left |
+| Right arrow, D, or L | Move right |
+| Down arrow or S | Soft drop |
 | Space | Hard drop |
-| Up arrow, X, or L | Rotate clockwise |
-| Z or H | Rotate counterclockwise |
+| Up arrow, X, or K | Rotate clockwise |
+| Z or J | Rotate counterclockwise |
 | C | Hold piece |
 | P or Esc | Pause or resume |
 | R or Enter | Restart |
