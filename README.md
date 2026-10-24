@@ -59,10 +59,10 @@ cargo build --release
 | --- | --- |
 | Left arrow or A | Move left |
 | Right arrow or D | Move right |
-| Down arrow or S | Soft drop |
+| Down arrow, S, or J | Soft drop |
 | Space | Hard drop |
-| Up arrow, X, K, or L | Rotate clockwise |
-| Z, H, or J | Rotate counterclockwise |
+| Up arrow, X, or L | Rotate clockwise |
+| Z or H | Rotate counterclockwise |
 | C | Hold piece |
 | P or Esc | Pause or resume |
 | R or Enter | Restart |
