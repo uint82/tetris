@@ -8,6 +8,7 @@ use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use crate::game::{Action, Game, Status};
 use crate::input::{self, MenuAction};
 use crate::mode::{Mode, ModeMenu};
+use crate::records::{Record, Records};
 use crate::ui;
 
 const FRAME_TIME: Duration = Duration::from_millis(16);
@@ -24,13 +25,23 @@ enum Screen {
 
 struct App {
     screen: Screen,
+    records: Records,
+    result_recorded: bool,
+    new_best: bool,
     quit: bool,
 }
 
 impl App {
     fn new() -> Self {
+        Self::with_records(Records::load())
+    }
+
+    fn with_records(records: Records) -> Self {
         Self {
             screen: Screen::Menu(ModeMenu::new()),
+            records,
+            result_recorded: false,
+            new_best: false,
             quit: false,
         }
     }
@@ -53,12 +64,15 @@ impl App {
         if let Some(game) = self.game_mut() {
             game.update(dt);
         }
+        self.record_result_if_needed();
     }
 
     fn draw(&self, frame: &mut Frame) {
         match &self.screen {
-            Screen::Menu(menu) => ui::draw_menu(frame, menu),
-            Screen::Game(game) => ui::draw_game(frame, game.as_ref()),
+            Screen::Menu(menu) => ui::draw_menu(frame, menu, self.records.bests()),
+            Screen::Game(game) => {
+                ui::draw_game(frame, game.as_ref(), self.records.bests(), self.new_best)
+            }
         }
     }
 
@@ -104,13 +118,15 @@ impl App {
         let Some(action) = input::action(key) else {
             return;
         };
+        self.record_result_if_needed();
         match action {
             Action::Quit => self.quit = true,
             Action::Menu => self.return_to_menu(),
-            Action::Restart => self.apply_to_game(Game::restart),
+            Action::Restart => self.restart_game(),
             Action::TogglePause => self.apply_to_game(Game::toggle_pause),
             action => self.apply_to_game(|game| game.apply(action)),
         }
+        self.record_result_if_needed();
     }
 
     fn start_selected_mode(&mut self) {
@@ -127,6 +143,45 @@ impl App {
 
     fn start_game(&mut self, mode: Mode) {
         self.screen = Screen::Game(Box::new(Game::new(mode)));
+        self.result_recorded = false;
+        self.new_best = false;
+    }
+
+    fn restart_game(&mut self) {
+        let Some(game) = self.game_mut() else {
+            return;
+        };
+        game.restart();
+        self.result_recorded = false;
+        self.new_best = false;
+    }
+
+    fn record_result_if_needed(&mut self) {
+        if self.result_recorded {
+            return;
+        }
+        let result = self.game().map(|game| {
+            (
+                game.mode(),
+                game.status(),
+                Record::new(
+                    game.stats().score(),
+                    game.stats().lines(),
+                    game.stats().level(),
+                    game.elapsed(),
+                ),
+            )
+        });
+        let Some((mode, status, record)) = result else {
+            return;
+        };
+        if !matches!(status, Status::GameOver | Status::Finished) {
+            return;
+        }
+        if mode != Mode::Sprint || status == Status::Finished {
+            self.new_best = self.records.submit(mode, record);
+        }
+        self.result_recorded = true;
     }
 
     fn return_to_menu(&mut self) {
@@ -189,6 +244,10 @@ mod tests {
         KeyEvent::new(code, KeyModifiers::NONE)
     }
 
+    fn test_app() -> App {
+        App::with_records(Records::in_memory())
+    }
+
     fn selected_menu_mode(app: &App) -> Mode {
         app.menu().expect("app is on the menu").selected()
     }
@@ -199,7 +258,7 @@ mod tests {
 
     #[test]
     fn enter_starts_the_selected_mode() {
-        let mut app = App::new();
+        let mut app = test_app();
         app.handle_key(key(KeyCode::Down));
         assert_eq!(selected_menu_mode(&app), Mode::Sprint);
         app.handle_key(key(KeyCode::Enter));
@@ -208,14 +267,14 @@ mod tests {
 
     #[test]
     fn number_keys_start_modes_directly() {
-        let mut app = App::new();
+        let mut app = test_app();
         app.handle_key(key(KeyCode::Char('3')));
         assert_eq!(active_game(&app).mode(), Mode::Ultra);
     }
 
     #[test]
     fn menu_is_only_available_after_the_game_stops() {
-        let mut app = App::new();
+        let mut app = test_app();
         app.handle_key(key(KeyCode::Enter));
         app.handle_key(key(KeyCode::Char('m')));
         assert!(app.game().is_some());
@@ -226,7 +285,7 @@ mod tests {
 
     #[test]
     fn menu_is_available_after_a_finished_game() {
-        let mut app = App::new();
+        let mut app = test_app();
         app.handle_key(key(KeyCode::Char('3')));
         app.apply_to_game(|game| game.update(crate::mode::ULTRA_TIME));
         app.handle_key(key(KeyCode::Char('m')));
@@ -234,8 +293,23 @@ mod tests {
     }
 
     #[test]
+    fn finished_game_updates_personal_bests() {
+        let mut app = test_app();
+        app.handle_key(key(KeyCode::Char('3')));
+        app.handle_key(key(KeyCode::Char(' ')));
+        app.update(crate::mode::ULTRA_TIME);
+        assert!(app.new_best);
+        assert!(app.records.bests().best(Mode::Ultra).is_some());
+
+        app.handle_key(key(KeyCode::Char('m')));
+        app.handle_key(key(KeyCode::Char('3')));
+        app.update(crate::mode::ULTRA_TIME);
+        assert!(!app.new_best);
+    }
+
+    #[test]
     fn q_quits_from_the_menu() {
-        let mut app = App::new();
+        let mut app = test_app();
         app.handle_key(key(KeyCode::Char('q')));
         assert!(app.quit);
     }
