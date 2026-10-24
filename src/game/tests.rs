@@ -1,6 +1,12 @@
 use super::*;
 use crate::board;
+use crate::mode::{Mode, SPRINT_LINES, ULTRA_TIME};
 use crate::piece::Position;
+use crate::scoring::Clear;
+
+fn new_game() -> Game {
+    Game::new(Mode::Marathon)
+}
 
 fn filled_cells(game: &Game) -> usize {
     let mut count = 0;
@@ -24,7 +30,7 @@ fn place_piece(game: &mut Game, kind: PieceKind, x: i32, y: i32) {
 
 #[test]
 fn new_game_has_a_full_preview_queue() {
-    let game = Game::new();
+    let game = new_game();
     assert_eq!(game.status(), Status::Playing);
     assert_eq!(game.next().count(), NEXT_COUNT);
     assert!(game.board().fits(&game.active()));
@@ -32,7 +38,7 @@ fn new_game_has_a_full_preview_queue() {
 
 #[test]
 fn hard_drop_locks_the_active_piece() {
-    let mut game = Game::new();
+    let mut game = new_game();
     let expected_next = game.next().next().expect("queue has pieces");
     game.apply(Action::HardDrop);
     assert_eq!(game.active().kind, expected_next);
@@ -42,7 +48,7 @@ fn hard_drop_locks_the_active_piece() {
 
 #[test]
 fn hold_swaps_once_per_piece() {
-    let mut game = Game::new();
+    let mut game = new_game();
     let first = game.active().kind;
     game.apply(Action::Hold);
     assert_eq!(game.held(), Some(first));
@@ -54,7 +60,7 @@ fn hold_swaps_once_per_piece() {
 
 #[test]
 fn hold_is_available_again_after_locking() {
-    let mut game = Game::new();
+    let mut game = new_game();
     game.apply(Action::Hold);
     game.apply(Action::HardDrop);
     assert!(game.can_hold());
@@ -62,7 +68,7 @@ fn hold_is_available_again_after_locking() {
 
 #[test]
 fn pause_stops_the_game() {
-    let mut game = Game::new();
+    let mut game = new_game();
     game.toggle_pause();
     assert_eq!(game.status(), Status::Paused);
     game.apply(Action::HardDrop);
@@ -73,7 +79,7 @@ fn pause_stops_the_game() {
 
 #[test]
 fn restart_clears_the_board() {
-    let mut game = Game::new();
+    let mut game = new_game();
     game.apply(Action::HardDrop);
     game.restart();
     assert_eq!(filled_cells(&game), 0);
@@ -83,7 +89,7 @@ fn restart_clears_the_board() {
 
 #[test]
 fn spawning_into_an_occupied_cell_ends_the_game() {
-    let mut game = Game::new();
+    let mut game = new_game();
     for (x, y) in ActivePiece::new(PieceKind::T).cells() {
         game.board.set(x as usize, y as usize, PieceKind::I);
     }
@@ -93,7 +99,7 @@ fn spawning_into_an_occupied_cell_ends_the_game() {
 
 #[test]
 fn gravity_moves_the_piece_down() {
-    let mut game = Game::new();
+    let mut game = new_game();
     let start_y = game.active().position.y;
     game.update(Duration::from_secs(1));
     assert!(game.active().position.y > start_y);
@@ -101,7 +107,7 @@ fn gravity_moves_the_piece_down() {
 
 #[test]
 fn grounded_piece_locks_after_the_delay() {
-    let mut game = Game::new();
+    let mut game = new_game();
     place_piece(&mut game, PieceKind::O, 4, board::HEIGHT as i32 - 2);
     game.update(LOCK_DELAY);
     assert_eq!(filled_cells(&game), 4);
@@ -109,7 +115,7 @@ fn grounded_piece_locks_after_the_delay() {
 
 #[test]
 fn movement_resets_the_lock_delay() {
-    let mut game = Game::new();
+    let mut game = new_game();
     place_piece(&mut game, PieceKind::O, 4, board::HEIGHT as i32 - 2);
     game.update(Duration::from_millis(400));
     game.apply(Action::MoveLeft);
@@ -121,10 +127,50 @@ fn movement_resets_the_lock_delay() {
 
 #[test]
 fn locking_above_the_visible_field_ends_the_game() {
-    let mut game = Game::new();
+    let mut game = new_game();
     place_piece(&mut game, PieceKind::O, 4, 0);
     game.lock();
     assert_eq!(game.status(), Status::GameOver);
+}
+
+#[test]
+fn sprint_finishes_at_the_line_goal() {
+    let mut game = Game::new(Mode::Sprint);
+    for _ in 0..10 {
+        game.stats.register(Clear {
+            lines: 4,
+            tspin: None,
+            perfect: false,
+        });
+    }
+    game.update(Duration::ZERO);
+    assert_eq!(game.stats().lines(), SPRINT_LINES);
+    assert_eq!(game.status(), Status::Finished);
+}
+
+#[test]
+fn ultra_finishes_at_the_time_limit() {
+    let mut game = Game::new(Mode::Ultra);
+    game.update(ULTRA_TIME);
+    assert_eq!(game.status(), Status::Finished);
+    game.toggle_pause();
+    assert_eq!(game.status(), Status::Finished);
+}
+
+#[test]
+fn pause_stops_the_clock() {
+    let mut game = new_game();
+    game.toggle_pause();
+    game.update(Duration::from_secs(1));
+    assert_eq!(game.elapsed(), Duration::ZERO);
+}
+
+#[test]
+fn restart_preserves_the_mode() {
+    let mut game = Game::new(Mode::Sprint);
+    game.restart();
+    assert_eq!(game.mode(), Mode::Sprint);
+    assert_eq!(game.status(), Status::Playing);
 }
 
 #[test]

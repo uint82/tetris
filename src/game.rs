@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::bag::Bag;
 use crate::board::{Board, HIDDEN_ROWS};
 use crate::kicks;
+use crate::mode::Mode;
 use crate::piece::{ActivePiece, PieceKind, Rotation};
 use crate::scoring::{Clear, ScoreState};
 use crate::tspin;
@@ -17,6 +18,7 @@ pub enum Status {
     Playing,
     Paused,
     GameOver,
+    Finished,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,6 +32,7 @@ pub enum Action {
     Hold,
     TogglePause,
     Restart,
+    Menu,
     Quit,
 }
 
@@ -41,7 +44,9 @@ pub struct Game {
     held: Option<PieceKind>,
     can_hold: bool,
     stats: ScoreState,
+    mode: Mode,
     status: Status,
+    elapsed: Duration,
     gravity: Duration,
     gravity_elapsed: Duration,
     lock_elapsed: Duration,
@@ -50,7 +55,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new() -> Self {
+    pub fn new(mode: Mode) -> Self {
         let mut bag = Bag::new();
         let mut queue = VecDeque::with_capacity(NEXT_COUNT);
         for _ in 0..NEXT_COUNT {
@@ -66,7 +71,9 @@ impl Game {
             held: None,
             can_hold: true,
             stats: ScoreState::new(),
+            mode,
             status: Status::Playing,
+            elapsed: Duration::ZERO,
             gravity: gravity_interval(1),
             gravity_elapsed: Duration::ZERO,
             lock_elapsed: Duration::ZERO,
@@ -77,6 +84,10 @@ impl Game {
 
     pub fn update(&mut self, dt: Duration) {
         if self.status != Status::Playing {
+            return;
+        }
+        self.elapsed += dt;
+        if self.finish_if_complete() {
             return;
         }
         self.apply_gravity(dt);
@@ -95,7 +106,7 @@ impl Game {
             Action::SoftDrop => self.soft_drop(),
             Action::HardDrop => self.hard_drop(),
             Action::Hold => self.hold(),
-            Action::TogglePause | Action::Restart | Action::Quit => {}
+            Action::TogglePause | Action::Restart | Action::Menu | Action::Quit => {}
         }
     }
 
@@ -103,12 +114,12 @@ impl Game {
         self.status = match self.status {
             Status::Playing => Status::Paused,
             Status::Paused => Status::Playing,
-            Status::GameOver => Status::GameOver,
+            Status::GameOver | Status::Finished => return,
         };
     }
 
     pub fn restart(&mut self) {
-        *self = Self::new();
+        *self = Self::new(self.mode);
     }
 
     pub fn board(&self) -> &Board {
@@ -133,6 +144,14 @@ impl Game {
 
     pub fn status(&self) -> Status {
         self.status
+    }
+
+    pub fn mode(&self) -> Mode {
+        self.mode
+    }
+
+    pub fn elapsed(&self) -> Duration {
+        self.elapsed
     }
 
     pub fn stats(&self) -> &ScoreState {
@@ -273,7 +292,18 @@ impl Game {
         });
         self.gravity = gravity_interval(self.stats.level());
         self.can_hold = true;
+        if self.finish_if_complete() {
+            return;
+        }
         self.spawn_next();
+    }
+
+    fn finish_if_complete(&mut self) -> bool {
+        if !self.mode.objective_met(self.stats.lines(), self.elapsed) {
+            return false;
+        }
+        self.status = Status::Finished;
+        true
     }
 
     fn spawn_next(&mut self) {
@@ -301,7 +331,7 @@ impl Game {
 
 impl Default for Game {
     fn default() -> Self {
-        Self::new()
+        Self::new(Mode::Marathon)
     }
 }
 
