@@ -5,6 +5,7 @@ A complete terminal Tetris game built with Rust and Ratatui.
 ## Features
 
 - Marathon, Sprint, and Ultra game modes
+- Per-mode personal bests saved between sessions
 - Super Rotation System with wall kicks
 - Seven-bag randomizer
 - Hold piece and five-piece preview queue
@@ -40,6 +41,10 @@ cargo build --release
 - Marathon: endless play until you top out
 - Sprint: clear 40 lines as fast as possible
 - Ultra: score as much as possible in two minutes
+
+## Personal Bests
+
+Marathon and Ultra track the highest score. Sprint tracks the fastest completed run. Records are saved automatically in the platform data directory.
 
 ## Controls
 
