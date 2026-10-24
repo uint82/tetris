@@ -4,9 +4,10 @@ A complete terminal Tetris game built with Rust and Ratatui.
 
 ## Features
 
-- Marathon, Sprint, and Ultra game modes
+- Marathon, Sprint, Ultra, and a daily challenge
 - Per-mode personal bests saved between sessions
 - Fair 3-2-1 countdown before timed runs
+- Date-seeded daily challenge with a daily best
 - Super Rotation System with wall kicks
 - Seven-bag randomizer
 - Hold piece and five-piece preview queue
@@ -43,12 +44,13 @@ cargo build --release
 - Marathon: endless play until you top out
 - Sprint: clear 40 lines as fast as possible
 - Ultra: score as much as possible in two minutes
+- Daily challenge: a seeded two-minute score run using the current UTC date
 
-Marathon starts immediately. Sprint and Ultra start after a 3-2-1 countdown, with their clocks starting at zero.
+Marathon starts immediately. Sprint, Ultra, and the daily challenge start after a 3-2-1 countdown, with their clocks starting at zero.
 
 ## Personal Bests
 
-Marathon and Ultra track the highest score. Sprint tracks the fastest completed run. Records are saved automatically in the platform data directory.
+Marathon and Ultra track the highest score. Sprint tracks the fastest completed run. The daily challenge tracks the highest score for the current UTC date. Records are saved automatically in the platform data directory.
 
 ## Controls
 
@@ -56,10 +58,11 @@ Marathon and Ultra track the highest score. Sprint tracks the fastest completed 
 
 | Key | Action |
 | --- | --- |
-| Up arrow or K | Select previous mode |
-| Down arrow or J | Select next mode |
-| Enter or Space | Start selected mode |
-| 1, 2, or 3 | Start Marathon, Sprint, or Ultra |
+| Up arrow or K | Select previous option |
+| Down arrow or J | Select next option |
+| Enter or Space | Start selected option |
+| 1, 2, 3, or 4 | Start Marathon, Sprint, Ultra, or the daily challenge |
+| D | Start the daily challenge |
 | Q or Ctrl+C | Quit |
 
 ### In Game
