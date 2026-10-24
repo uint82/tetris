@@ -1,27 +1,61 @@
 use crate::piece::PieceKind;
 
+enum Randomizer {
+    SevenBag,
+    Classic,
+}
+
 pub struct Bag {
     pieces: Vec<PieceKind>,
     rng: BagRng,
+    randomizer: Randomizer,
+    last: Option<PieceKind>,
 }
 
 impl Bag {
     pub fn new() -> Self {
-        Self::seeded(rand::random())
+        Self::with(Randomizer::SevenBag, rand::random())
     }
 
     pub fn seeded(seed: u64) -> Self {
+        Self::with(Randomizer::SevenBag, seed)
+    }
+
+    pub fn classic() -> Self {
+        Self::with(Randomizer::Classic, rand::random())
+    }
+
+    fn with(randomizer: Randomizer, seed: u64) -> Self {
         Self {
             pieces: Vec::with_capacity(PieceKind::ALL.len()),
             rng: BagRng::new(seed),
+            randomizer,
+            last: None,
         }
     }
 
     pub fn next(&mut self) -> PieceKind {
+        match self.randomizer {
+            Randomizer::SevenBag => self.next_seven_bag(),
+            Randomizer::Classic => self.next_classic(),
+        }
+    }
+
+    fn next_seven_bag(&mut self) -> PieceKind {
         if self.pieces.is_empty() {
             self.refill();
         }
         self.pieces.pop().expect("bag is refilled")
+    }
+
+    fn next_classic(&mut self) -> PieceKind {
+        loop {
+            let kind = PieceKind::ALL[self.rng.below(PieceKind::ALL.len())];
+            if self.last != Some(kind) {
+                self.last = Some(kind);
+                return kind;
+            }
+        }
     }
 
     fn refill(&mut self) {
@@ -92,6 +126,17 @@ mod tests {
         let dealt: Vec<PieceKind> = (0..14).map(|_| bag.next()).collect();
         for kind in PieceKind::ALL {
             assert_eq!(dealt.iter().filter(|&&piece| piece == kind).count(), 2);
+        }
+    }
+
+    #[test]
+    fn classic_randomizer_avoids_consecutive_repeats() {
+        let mut bag = Bag::classic();
+        let mut last = None;
+        for _ in 0..200 {
+            let kind = bag.next();
+            assert_ne!(Some(kind), last);
+            last = Some(kind);
         }
     }
 

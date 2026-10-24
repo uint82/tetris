@@ -29,7 +29,7 @@ pub fn format_duration(duration: std::time::Duration) -> String {
 pub fn format_best(mode: Mode, record: Record) -> String {
     match mode {
         Mode::Sprint => format_duration(record.elapsed()),
-        Mode::Marathon | Mode::Ultra => record.score().to_string(),
+        Mode::Marathon | Mode::Time | Mode::Classic => record.score().to_string(),
     }
 }
 
@@ -50,6 +50,7 @@ mod tests {
         let record = Record::new(1200, 40, 4, Duration::from_secs(75));
         assert_eq!(format_best(Mode::Marathon, record), "1200");
         assert_eq!(format_best(Mode::Sprint, record), "1:15");
-        assert_eq!(format_best(Mode::Ultra, record), "1200");
+        assert_eq!(format_best(Mode::Time, record), "1200");
+        assert_eq!(format_best(Mode::Classic, record), "1200");
     }
 }

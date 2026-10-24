@@ -2,7 +2,7 @@ use super::*;
 use crate::countdown::COUNTDOWN_TIME;
 use crate::daily::DailyDate;
 use crate::game::Action;
-use crate::mode::ULTRA_TIME;
+use crate::mode::TIME_LIMIT;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -26,13 +26,13 @@ fn effects_render_on_the_board() {
     let ghost = active;
     let mut effects = Effects::default();
     effects.start_line_clear(1 << HIDDEN_ROWS);
-    let flash = board_span(&board, &active, &ghost, &effects, 4, HIDDEN_ROWS);
+    let flash = board_span(&board, &active, Some(&ghost), &effects, 4, HIDDEN_ROWS);
     assert_eq!(flash.content, "██");
     assert_eq!(flash.style, theme::line_flash(true));
 
     let mut effects = Effects::default();
     effects.start_hard_drop(ActivePiece::new(PieceKind::O), 3);
-    let trail = board_span(&board, &active, &ghost, &effects, 4, HIDDEN_ROWS + 3);
+    let trail = board_span(&board, &active, Some(&ghost), &effects, 4, HIDDEN_ROWS + 3);
     assert_eq!(trail.content, "██");
     assert_eq!(trail.style, block_span(PieceKind::O, false).style);
 }
@@ -82,7 +82,7 @@ fn draws_the_daily_challenge_and_result() {
         .draw(|frame| draw(frame, &game, &bests, false))
         .expect("daily countdown renders");
     game.update(COUNTDOWN_TIME);
-    game.update(ULTRA_TIME);
+    game.update(TIME_LIMIT);
     terminal
         .draw(|frame| draw(frame, &game, &bests, true))
         .expect("daily result renders");
@@ -92,10 +92,10 @@ fn draws_the_daily_challenge_and_result() {
 fn draws_the_finished_overlay() {
     let backend = TestBackend::new(TOTAL_WIDTH, TOTAL_HEIGHT);
     let mut terminal = Terminal::new(backend).expect("test terminal");
-    let mut game = Game::new(Mode::Ultra);
+    let mut game = Game::new(Mode::Time);
     let bests = PersonalBests::default();
     game.update(COUNTDOWN_TIME);
-    game.update(ULTRA_TIME);
+    game.update(TIME_LIMIT);
     terminal
         .draw(|frame| draw(frame, &game, &bests, true))
         .expect("finished overlay renders");

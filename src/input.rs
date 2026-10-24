@@ -70,7 +70,8 @@ fn menu_letter_action(character: char) -> Option<MenuAction> {
         '1' => Some(MenuAction::StartChoice(0)),
         '2' => Some(MenuAction::StartChoice(1)),
         '3' => Some(MenuAction::StartChoice(2)),
-        '4' | 'd' => Some(MenuAction::StartChoice(3)),
+        '4' => Some(MenuAction::StartChoice(3)),
+        '5' | 'd' => Some(MenuAction::StartChoice(4)),
         'q' => Some(MenuAction::Quit),
         _ => None,
     }
@@ -175,8 +176,12 @@ mod tests {
             Some(MenuAction::StartChoice(3))
         );
         assert_eq!(
+            menu_action(key(KeyCode::Char('5'))),
+            Some(MenuAction::StartChoice(4))
+        );
+        assert_eq!(
             menu_action(key(KeyCode::Char('d'))),
-            Some(MenuAction::StartChoice(3))
+            Some(MenuAction::StartChoice(4))
         );
     }
 

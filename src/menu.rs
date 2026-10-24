@@ -7,10 +7,11 @@ pub enum MenuChoice {
 }
 
 impl MenuChoice {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Mode(Mode::Marathon),
         Self::Mode(Mode::Sprint),
-        Self::Mode(Mode::Ultra),
+        Self::Mode(Mode::Time),
+        Self::Mode(Mode::Classic),
         Self::Daily,
     ];
 
@@ -24,7 +25,7 @@ impl MenuChoice {
     pub const fn record_mode(self) -> Mode {
         match self {
             Self::Mode(mode) => mode,
-            Self::Daily => Mode::Ultra,
+            Self::Daily => Mode::Time,
         }
     }
 
@@ -32,8 +33,9 @@ impl MenuChoice {
         match self {
             Self::Mode(Mode::Marathon) => 0,
             Self::Mode(Mode::Sprint) => 1,
-            Self::Mode(Mode::Ultra) => 2,
-            Self::Daily => 3,
+            Self::Mode(Mode::Time) => 2,
+            Self::Mode(Mode::Classic) => 3,
+            Self::Daily => 4,
         }
     }
 }

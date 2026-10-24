@@ -10,7 +10,7 @@ use crate::records::PersonalBests;
 use crate::theme;
 
 const MENU_WIDTH: u16 = 42;
-const MENU_HEIGHT: u16 = 22;
+const MENU_HEIGHT: u16 = 26;
 const OPTION_WIDTH: usize = 37;
 const DESCRIPTION_INDENT: usize = 4;
 
@@ -93,7 +93,7 @@ fn best_line(choice: MenuChoice, bests: &PersonalBests, daily: DailyDate) -> Lin
 fn footer_lines() -> Vec<Line<'static>> {
     vec![
         Line::from("Up/Down select   Enter start   Q quit").style(theme::help()),
-        Line::from("1-4 quick start").style(theme::help()),
+        Line::from("1-5 quick start").style(theme::help()),
     ]
 }
 

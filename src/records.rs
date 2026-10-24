@@ -41,7 +41,7 @@ impl Record {
     fn is_better_than(self, mode: Mode, other: Self) -> bool {
         match mode {
             Mode::Sprint => self.elapsed < other.elapsed,
-            Mode::Marathon | Mode::Ultra => self.score > other.score,
+            Mode::Marathon | Mode::Time | Mode::Classic => self.score > other.score,
         }
     }
 }
@@ -174,21 +174,24 @@ struct StoredRecords {
     marathon: Option<StoredRecord>,
     #[serde(default)]
     sprint: Option<StoredRecord>,
+    #[serde(default, alias = "ultra")]
+    time: Option<StoredRecord>,
     #[serde(default)]
-    ultra: Option<StoredRecord>,
+    classic: Option<StoredRecord>,
     #[serde(default)]
     daily: Option<StoredDaily>,
 }
 
 impl From<&PersonalBests> for StoredRecords {
     fn from(bests: &PersonalBests) -> Self {
-        let [marathon, sprint, ultra] =
+        let [marathon, sprint, time, classic] =
             Mode::ALL.map(|mode| bests.best(mode).map(StoredRecord::from));
         Self {
             version: RECORDS_VERSION,
             marathon,
             sprint,
-            ultra,
+            time,
+            classic,
             daily: bests.daily_best.map(StoredDaily::from),
         }
     }
@@ -197,7 +200,7 @@ impl From<&PersonalBests> for StoredRecords {
 impl From<StoredRecords> for PersonalBests {
     fn from(stored: StoredRecords) -> Self {
         Self {
-            entries: [stored.marathon, stored.sprint, stored.ultra]
+            entries: [stored.marathon, stored.sprint, stored.time, stored.classic]
                 .map(|record| record.map(Record::from)),
             daily_best: stored.daily.map(DailyBest::from),
         }
@@ -275,13 +278,13 @@ mod tests {
     }
 
     #[test]
-    fn marathon_and_ultra_records_compare_score() {
+    fn score_modes_compare_score() {
         let mut bests = PersonalBests::default();
-        bests.submit(Mode::Marathon, record(1000, 60));
-        assert!(!bests.submit(Mode::Marathon, record(900, 30)));
-        assert!(bests.submit(Mode::Marathon, record(1100, 90)));
-        assert!(bests.submit(Mode::Ultra, record(500, 120)));
-        assert!(!bests.submit(Mode::Ultra, record(499, 120)));
+        for mode in [Mode::Marathon, Mode::Time, Mode::Classic] {
+            assert!(bests.submit(mode, record(1000, 60)));
+            assert!(!bests.submit(mode, record(900, 30)));
+            assert!(bests.submit(mode, record(1100, 90)));
+        }
     }
 
     #[test]
@@ -325,6 +328,8 @@ mod tests {
         let mut bests = PersonalBests::default();
         bests.submit(Mode::Marathon, record(1200, 80));
         bests.submit(Mode::Sprint, record(700, 55));
+        bests.submit(Mode::Time, record(800, 120));
+        bests.submit(Mode::Classic, record(900, 70));
         bests.submit_daily(DailyDate::from_days(20_751), record(1300, 120));
         save_file(&path, &bests).expect("records save");
         assert_eq!(load_file(&path), Some(bests));
@@ -342,6 +347,20 @@ mod tests {
         let bests = load_file(&path).expect("legacy records load");
         assert_eq!(bests.best(Mode::Marathon).map(Record::score), Some(900));
         assert_eq!(bests.daily(DailyDate::from_days(20_751)), None);
+    }
+
+    #[test]
+    fn legacy_ultra_records_load_as_time() {
+        let directory = tempdir().expect("temporary directory");
+        let path = directory.path().join(RECORDS_FILE);
+        fs::write(
+            &path,
+            "version = 1\n[ultra]\nscore = 1500\nlines = 20\nlevel = 2\nmillis = 120000\n",
+        )
+        .expect("write legacy records");
+        let bests = load_file(&path).expect("legacy records load");
+        assert_eq!(bests.best(Mode::Time).map(Record::score), Some(1500));
+        assert_eq!(bests.best(Mode::Classic), None);
     }
 
     #[test]

@@ -35,7 +35,7 @@ fn enter_starts_the_selected_mode() {
 fn number_keys_start_modes_directly() {
     let mut app = test_app();
     app.handle_key(key(KeyCode::Char('3')));
-    assert_eq!(active_game(&app).mode(), Mode::Ultra);
+    assert_eq!(active_game(&app).mode(), Mode::Time);
 }
 
 #[test]
@@ -54,9 +54,9 @@ fn menu_is_available_after_a_finished_game() {
     let mut app = test_app();
     app.handle_key(key(KeyCode::Char('3')));
     skip_countdown(&mut app);
-    app.apply_to_game(|game| game.update(crate::mode::ULTRA_TIME));
+    app.apply_to_game(|game| game.update(crate::mode::TIME_LIMIT));
     app.handle_key(key(KeyCode::Char('m')));
-    assert_eq!(selected_menu_choice(&app), MenuChoice::Mode(Mode::Ultra));
+    assert_eq!(selected_menu_choice(&app), MenuChoice::Mode(Mode::Time));
 }
 
 #[test]
@@ -65,55 +65,68 @@ fn finished_game_updates_personal_bests() {
     app.handle_key(key(KeyCode::Char('3')));
     skip_countdown(&mut app);
     app.handle_key(key(KeyCode::Char(' ')));
-    app.update(crate::mode::ULTRA_TIME);
+    app.update(crate::mode::TIME_LIMIT);
     assert!(app.new_best);
-    assert!(app.records.bests().best(Mode::Ultra).is_some());
+    assert!(app.records.bests().best(Mode::Time).is_some());
 
     app.handle_key(key(KeyCode::Char('m')));
     app.handle_key(key(KeyCode::Char('3')));
     skip_countdown(&mut app);
-    app.update(crate::mode::ULTRA_TIME);
+    app.update(crate::mode::TIME_LIMIT);
     assert!(!app.new_best);
+}
+
+#[test]
+fn classic_starts_without_a_countdown() {
+    let mut app = test_app();
+    for _ in 0..3 {
+        app.handle_key(key(KeyCode::Down));
+    }
+    assert_eq!(selected_menu_choice(&app), MenuChoice::Mode(Mode::Classic));
+    app.handle_key(key(KeyCode::Enter));
+    let game = active_game(&app);
+    assert_eq!(game.mode(), Mode::Classic);
+    assert_eq!(game.countdown_number(), None);
 }
 
 #[test]
 fn daily_choice_starts_a_seeded_challenge() {
     let mut app = test_app();
-    for _ in 0..3 {
+    for _ in 0..4 {
         app.handle_key(key(KeyCode::Down));
     }
     assert_eq!(selected_menu_choice(&app), MenuChoice::Daily);
     app.handle_key(key(KeyCode::Enter));
     let game = active_game(&app);
-    assert_eq!(game.mode(), Mode::Ultra);
+    assert_eq!(game.mode(), Mode::Time);
     assert_eq!(game.daily_date(), Some(DailyDate::today()));
 }
 
 #[test]
-fn number_four_starts_the_daily_challenge() {
+fn number_five_starts_the_daily_challenge() {
     let mut app = test_app();
-    app.handle_key(key(KeyCode::Char('4')));
+    app.handle_key(key(KeyCode::Char('5')));
     assert!(active_game(&app).daily_date().is_some());
 }
 
 #[test]
 fn daily_result_updates_only_the_daily_best() {
     let mut app = test_app();
-    app.handle_key(key(KeyCode::Char('4')));
+    app.handle_key(key(KeyCode::Char('5')));
     skip_countdown(&mut app);
     app.handle_key(key(KeyCode::Char(' ')));
-    app.update(crate::mode::ULTRA_TIME);
+    app.update(crate::mode::TIME_LIMIT);
     assert!(app.new_best);
     assert!(app.records.bests().daily(DailyDate::today()).is_some());
-    assert!(app.records.bests().best(Mode::Ultra).is_none());
+    assert!(app.records.bests().best(Mode::Time).is_none());
 }
 
 #[test]
 fn daily_game_returns_to_the_daily_menu_entry() {
     let mut app = test_app();
-    app.handle_key(key(KeyCode::Char('4')));
+    app.handle_key(key(KeyCode::Char('5')));
     skip_countdown(&mut app);
-    app.apply_to_game(|game| game.update(crate::mode::ULTRA_TIME));
+    app.apply_to_game(|game| game.update(crate::mode::TIME_LIMIT));
     app.handle_key(key(KeyCode::Char('m')));
     assert_eq!(selected_menu_choice(&app), MenuChoice::Daily);
 }

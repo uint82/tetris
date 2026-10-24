@@ -2,7 +2,7 @@ use super::*;
 use crate::board;
 use crate::countdown::COUNTDOWN_TIME;
 use crate::daily::DailyDate;
-use crate::mode::{Mode, SPRINT_LINES, ULTRA_TIME};
+use crate::mode::{Mode, SPRINT_LINES, TIME_LIMIT};
 use crate::piece::Position;
 use crate::scoring::Clear;
 
@@ -43,7 +43,7 @@ fn daily_challenge_uses_a_stable_seed() {
     let date = DailyDate::from_days(20_751);
     let first = Game::daily(date);
     let second = Game::daily(date);
-    assert_eq!(first.mode(), Mode::Ultra);
+    assert_eq!(first.mode(), Mode::Time);
     assert_eq!(first.daily_date(), Some(date));
     assert_eq!(opening(&first), opening(&second));
     assert_ne!(
@@ -58,22 +58,73 @@ fn daily_restart_preserves_seed_and_date() {
     let mut game = Game::daily(date);
     let expected = opening(&game);
     game.restart();
-    assert_eq!(game.mode(), Mode::Ultra);
+    assert_eq!(game.mode(), Mode::Time);
     assert_eq!(game.daily_date(), Some(date));
     assert_eq!(game.countdown_number(), Some(3));
     assert_eq!(opening(&game), expected);
 }
 
 #[test]
+fn classic_disables_hold_and_hard_drop() {
+    let mut game = Game::new(Mode::Classic);
+    let active = game.active();
+    game.apply(Action::HardDrop);
+    assert_eq!(game.active(), active);
+    assert_eq!(filled_cells(&game), 0);
+    game.apply(Action::Hold);
+    assert_eq!(game.held(), None);
+}
+
+#[test]
+fn classic_soft_drop_locks_on_contact() {
+    let mut game = Game::new(Mode::Classic);
+    place_piece(&mut game, PieceKind::O, 4, board::HEIGHT as i32 - 2);
+    game.apply(Action::SoftDrop);
+    assert_eq!(filled_cells(&game), 4);
+}
+
+#[test]
+fn classic_gravity_locks_on_contact() {
+    let mut game = Game::new(Mode::Classic);
+    place_piece(&mut game, PieceKind::O, 4, board::HEIGHT as i32 - 2);
+    game.update(Duration::from_millis(500));
+    assert_eq!(filled_cells(&game), 0);
+    game.update(Duration::from_millis(300));
+    assert_eq!(filled_cells(&game), 4);
+}
+
+#[test]
+fn classic_rotation_has_no_wall_kicks() {
+    let mut classic = Game::new(Mode::Classic);
+    place_piece(&mut classic, PieceKind::T, 3, 5);
+    classic.board.set(4, 7, PieceKind::I);
+    let original = classic.active();
+    classic.apply(Action::RotateClockwise);
+    assert_eq!(classic.active(), original);
+
+    let mut marathon = Game::new(Mode::Marathon);
+    place_piece(&mut marathon, PieceKind::T, 3, 5);
+    marathon.board.set(4, 7, PieceKind::I);
+    marathon.apply(Action::RotateClockwise);
+    assert_ne!(marathon.active(), original);
+}
+
+#[test]
+fn classic_gravity_starts_slower_than_marathon() {
+    assert_eq!(classic_gravity_interval(1), Duration::from_millis(800));
+    assert_eq!(classic_gravity_interval(10), Duration::from_millis(100));
+}
+
+#[test]
 fn timed_modes_start_with_a_countdown() {
     assert_eq!(Game::new(Mode::Sprint).countdown_number(), Some(3));
-    assert_eq!(Game::new(Mode::Ultra).countdown_number(), Some(3));
+    assert_eq!(Game::new(Mode::Time).countdown_number(), Some(3));
     assert_eq!(Game::new(Mode::Marathon).countdown_number(), None);
 }
 
 #[test]
 fn countdown_blocks_input_and_the_clock() {
-    let mut game = Game::new(Mode::Ultra);
+    let mut game = Game::new(Mode::Time);
     game.apply(Action::HardDrop);
     assert_eq!(filled_cells(&game), 0);
     game.update(Duration::from_secs(1));
@@ -84,7 +135,7 @@ fn countdown_blocks_input_and_the_clock() {
 
 #[test]
 fn pause_freezes_the_countdown() {
-    let mut game = Game::new(Mode::Ultra);
+    let mut game = Game::new(Mode::Time);
     game.update(Duration::from_secs(1));
     game.toggle_pause();
     game.update(Duration::from_secs(1));
@@ -96,7 +147,7 @@ fn pause_freezes_the_countdown() {
 
 #[test]
 fn countdown_releases_the_clock() {
-    let mut game = Game::new(Mode::Ultra);
+    let mut game = Game::new(Mode::Time);
     skip_countdown(&mut game);
     assert_eq!(game.countdown_number(), None);
     game.update(Duration::from_secs(1));
@@ -241,10 +292,10 @@ fn sprint_finishes_at_the_line_goal() {
 }
 
 #[test]
-fn ultra_finishes_at_the_time_limit() {
-    let mut game = Game::new(Mode::Ultra);
+fn time_finishes_at_the_time_limit() {
+    let mut game = Game::new(Mode::Time);
     skip_countdown(&mut game);
-    game.update(ULTRA_TIME);
+    game.update(TIME_LIMIT);
     assert_eq!(game.status(), Status::Finished);
     game.toggle_pause();
     assert_eq!(game.status(), Status::Finished);

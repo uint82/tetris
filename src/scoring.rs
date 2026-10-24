@@ -9,8 +9,15 @@ pub struct Clear {
     pub perfect: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scoring {
+    Modern,
+    Classic,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ScoreState {
+    scoring: Scoring,
     score: u64,
     lines: u32,
     level: u32,
@@ -19,8 +26,9 @@ pub struct ScoreState {
 }
 
 impl ScoreState {
-    pub const fn new() -> Self {
+    pub const fn new(scoring: Scoring) -> Self {
         Self {
+            scoring,
             score: 0,
             lines: 0,
             level: 1,
@@ -58,6 +66,13 @@ impl ScoreState {
     }
 
     pub fn register(&mut self, clear: Clear) {
+        match self.scoring {
+            Scoring::Modern => self.register_modern(clear),
+            Scoring::Classic => self.register_classic(clear),
+        }
+    }
+
+    fn register_modern(&mut self, clear: Clear) {
         let level = self.level;
         let base = base_points(clear, level);
         let b2b = b2b_points(clear, self.back_to_back, level);
@@ -69,6 +84,12 @@ impl ScoreState {
         if clear.lines > 0 {
             self.back_to_back = is_difficult(clear);
         }
+    }
+
+    fn register_classic(&mut self, clear: Clear) {
+        self.score += classic_points(clear.lines, self.level);
+        self.lines += u32::from(clear.lines);
+        self.level = 1 + self.lines / LINES_PER_LEVEL;
     }
 
     fn advance_combo(&mut self, lines: u8) -> u64 {
@@ -86,8 +107,19 @@ impl ScoreState {
 
 impl Default for ScoreState {
     fn default() -> Self {
-        Self::new()
+        Self::new(Scoring::Modern)
     }
+}
+
+fn classic_points(lines: u8, level: u32) -> u64 {
+    let base = match lines {
+        1 => 40,
+        2 => 100,
+        3 => 300,
+        4 => 1200,
+        _ => 0,
+    };
+    base * u64::from(level)
 }
 
 fn base_points(clear: Clear, level: u32) -> u64 {
@@ -149,14 +181,14 @@ mod tests {
 
     #[test]
     fn tetris_scores_guideline_value() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(clear(4));
         assert_eq!(state.score(), 800);
     }
 
     #[test]
     fn back_to_back_tetris_adds_half_bonus() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(clear(4));
         state.register(clear(0));
         let first = state.score();
@@ -166,7 +198,7 @@ mod tests {
 
     #[test]
     fn combo_multiplies_by_level() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(clear(1));
         state.register(clear(1));
         assert_eq!(state.score(), 250);
@@ -175,7 +207,7 @@ mod tests {
 
     #[test]
     fn empty_clear_resets_combo() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(clear(1));
         state.register(clear(0));
         assert_eq!(state.combo(), -1);
@@ -183,7 +215,7 @@ mod tests {
 
     #[test]
     fn full_t_spin_single_scores_more_than_a_single() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(Clear {
             lines: 1,
             tspin: Some(TSpin::Full),
@@ -194,7 +226,7 @@ mod tests {
 
     #[test]
     fn mini_t_spin_double_scores_guideline_value() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(Clear {
             lines: 2,
             tspin: Some(TSpin::Mini),
@@ -205,7 +237,7 @@ mod tests {
 
     #[test]
     fn perfect_clear_adds_bonus() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(Clear {
             lines: 1,
             tspin: None,
@@ -216,7 +248,7 @@ mod tests {
 
     #[test]
     fn level_advances_every_ten_lines() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.register(clear(4));
         state.register(clear(4));
         state.register(clear(2));
@@ -226,9 +258,44 @@ mod tests {
 
     #[test]
     fn drop_bonuses_add_direct_points() {
-        let mut state = ScoreState::new();
+        let mut state = ScoreState::new(Scoring::Modern);
         state.add_soft_drop(3);
         state.add_hard_drop(5);
         assert_eq!(state.score(), 13);
+    }
+
+    #[test]
+    fn classic_clears_use_nes_values() {
+        let mut state = ScoreState::new(Scoring::Classic);
+        state.register(clear(1));
+        assert_eq!(state.score(), 40);
+        state.register(clear(4));
+        assert_eq!(state.score(), 1240);
+    }
+
+    #[test]
+    fn classic_clears_ignore_modern_bonuses() {
+        let mut state = ScoreState::new(Scoring::Classic);
+        state.register(Clear {
+            lines: 1,
+            tspin: Some(TSpin::Full),
+            perfect: true,
+        });
+        state.register(clear(1));
+        assert_eq!(state.score(), 80);
+        assert_eq!(state.combo(), -1);
+        assert!(!state.back_to_back());
+    }
+
+    #[test]
+    fn classic_clears_scale_with_level() {
+        let mut state = ScoreState::new(Scoring::Classic);
+        for _ in 0..10 {
+            state.register(clear(1));
+        }
+        assert_eq!(state.level(), 2);
+        let before = state.score();
+        state.register(clear(1));
+        assert_eq!(state.score() - before, 80);
     }
 }

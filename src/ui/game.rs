@@ -48,7 +48,7 @@ pub fn draw(frame: &mut Frame, game: &Game, bests: &PersonalBests, new_best: boo
     render_hold(frame, layout.hold, game);
     render_next(frame, layout.next, game);
     render_stats(frame, layout.stats, game);
-    render_help(frame, layout.help);
+    render_help(frame, layout.help, game.mode());
     render_overlay(frame, layout.main, game, bests, new_best);
 }
 
@@ -104,12 +104,12 @@ fn timer_value(game: &Game) -> String {
 
 fn board_lines(game: &Game) -> Vec<Line<'static>> {
     let active = game.active();
-    let ghost = game.ghost();
+    let ghost = game.mode().shows_ghost().then(|| game.ghost());
     let effects = game.effects();
     (HIDDEN_ROWS..HEIGHT)
         .map(|y| {
             let spans = (0..WIDTH)
-                .map(|x| board_span(game.board(), &active, &ghost, effects, x, y))
+                .map(|x| board_span(game.board(), &active, ghost.as_ref(), effects, x, y))
                 .collect::<Vec<_>>();
             Line::from(spans)
         })
@@ -119,7 +119,7 @@ fn board_lines(game: &Game) -> Vec<Line<'static>> {
 fn board_span(
     board: &Board,
     active: &ActivePiece,
-    ghost: &ActivePiece,
+    ghost: Option<&ActivePiece>,
     effects: &Effects,
     x: usize,
     y: usize,
@@ -140,23 +140,34 @@ fn board_span(
     {
         return block_span(trail.kind(), false);
     }
-    if ghost.occupies(x as i32, y as i32) {
+    if ghost.is_some_and(|ghost| ghost.occupies(x as i32, y as i32)) {
         return ghost_span();
     }
     empty_span()
 }
 
 fn render_hold(frame: &mut Frame, area: Rect, game: &Game) {
-    let lines = match game.held() {
-        Some(kind) => preview_lines(kind, game.can_hold()),
-        None => blank_preview(),
-    };
+    let lines = hold_lines(game);
     frame.render_widget(
         Paragraph::new(lines)
             .alignment(Alignment::Center)
             .block(panel_block(" HOLD ")),
         area,
     );
+}
+
+fn hold_lines(game: &Game) -> Vec<Line<'static>> {
+    if !game.mode().allows_hold() {
+        return vec![
+            Line::default(),
+            Line::from("N/A").style(theme::help()),
+            Line::default(),
+        ];
+    }
+    match game.held() {
+        Some(kind) => preview_lines(kind, game.can_hold()),
+        None => blank_preview(),
+    }
 }
 
 fn render_next(frame: &mut Frame, area: Rect, game: &Game) {
@@ -174,21 +185,37 @@ fn render_next(frame: &mut Frame, area: Rect, game: &Game) {
 
 fn render_stats(frame: &mut Frame, area: Rect, game: &Game) {
     let stats = game.stats();
+    let fourth_line = if game.mode().shows_combo() {
+        combo_line(stats)
+    } else {
+        stat_line("Mode", game.mode().label().to_string())
+    };
     let lines = vec![
         stat_line("Score", stats.score().to_string()),
         stat_line("Level", stats.level().to_string()),
         stat_line("Lines", stats.lines().to_string()),
-        combo_line(stats),
+        fourth_line,
     ];
     frame.render_widget(Paragraph::new(lines).block(panel_block(" STATS ")), area);
 }
 
-fn render_help(frame: &mut Frame, area: Rect) {
-    let lines = vec![
+fn render_help(frame: &mut Frame, area: Rect, mode: Mode) {
+    frame.render_widget(
+        Paragraph::new(help_lines(mode)).alignment(Alignment::Center),
+        area,
+    );
+}
+
+fn help_lines(mode: Mode) -> Vec<Line<'static>> {
+    let controls = if mode.is_classic() {
+        "Down/S soft  P pause  Q quit"
+    } else {
+        "Down/S soft  Space drop  C hold  P pause"
+    };
+    vec![
         Line::from("Arrows/H/L move  J/K/X/Z rotate").style(theme::help()),
-        Line::from("Down/S soft  Space drop  C hold  P pause").style(theme::help()),
-    ];
-    frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
+        Line::from(controls).style(theme::help()),
+    ]
 }
 
 fn render_overlay(
@@ -240,7 +267,8 @@ fn finished_title(game: &Game) -> &'static str {
     match game.mode() {
         Mode::Marathon => " MARATHON COMPLETE ",
         Mode::Sprint => " SPRINT COMPLETE ",
-        Mode::Ultra => " TIME UP ",
+        Mode::Time => " TIME UP ",
+        Mode::Classic => " CLASSIC COMPLETE ",
     }
 }
 

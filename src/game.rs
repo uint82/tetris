@@ -9,7 +9,7 @@ use crate::effects::Effects;
 use crate::kicks;
 use crate::mode::Mode;
 use crate::piece::{ActivePiece, PieceKind, Rotation};
-use crate::scoring::{Clear, ScoreState};
+use crate::scoring::{Clear, ScoreState, Scoring};
 use crate::tspin;
 
 pub const NEXT_COUNT: usize = 5;
@@ -62,11 +62,16 @@ pub struct Game {
 
 impl Game {
     pub fn new(mode: Mode) -> Self {
-        Self::with_bag(mode, Bag::new(), None)
+        let bag = if mode.is_classic() {
+            Bag::classic()
+        } else {
+            Bag::new()
+        };
+        Self::with_bag(mode, bag, None)
     }
 
     pub fn daily(date: DailyDate) -> Self {
-        Self::with_bag(Mode::Ultra, Bag::seeded(date.seed()), Some(date))
+        Self::with_bag(Mode::Time, Bag::seeded(date.seed()), Some(date))
     }
 
     fn with_bag(mode: Mode, mut bag: Bag, daily: Option<DailyDate>) -> Self {
@@ -76,6 +81,11 @@ impl Game {
         }
         let kind = queue.pop_front().expect("queue is prefilled");
         queue.push_back(bag.next());
+        let scoring = if mode.is_classic() {
+            Scoring::Classic
+        } else {
+            Scoring::Modern
+        };
         Self {
             board: Board::new(),
             active: ActivePiece::new(kind),
@@ -83,11 +93,11 @@ impl Game {
             queue,
             held: None,
             can_hold: true,
-            stats: ScoreState::new(),
+            stats: ScoreState::new(scoring),
             mode,
             status: Status::Playing,
             elapsed: Duration::ZERO,
-            gravity: gravity_interval(1),
+            gravity: gravity_for(mode, 1),
             gravity_elapsed: Duration::ZERO,
             lock_elapsed: Duration::ZERO,
             lock_resets: 0,
@@ -125,8 +135,10 @@ impl Game {
             Action::RotateClockwise => self.rotate(true),
             Action::RotateCounterClockwise => self.rotate(false),
             Action::SoftDrop => self.soft_drop(),
-            Action::HardDrop => self.hard_drop(),
-            Action::Hold => self.hold(),
+            Action::HardDrop if self.mode.allows_hard_drop() => self.hard_drop(),
+            Action::HardDrop => {}
+            Action::Hold if self.mode.allows_hold() => self.hold(),
+            Action::Hold => {}
             Action::TogglePause | Action::Restart | Action::Menu | Action::Quit => {}
         }
     }
@@ -213,11 +225,19 @@ impl Game {
         } else {
             self.active.rotation.counter_clockwise()
         };
-        if let Some(rotated) = self.kicked_rotation(to, clockwise) {
+        if let Some(rotated) = self.rotation_candidate(to, clockwise) {
             self.active = rotated;
             self.last_action_rotation = true;
             self.reset_lock_delay();
         }
+    }
+
+    fn rotation_candidate(&self, to: Rotation, clockwise: bool) -> Option<ActivePiece> {
+        if self.mode.uses_wall_kicks() {
+            return self.kicked_rotation(to, clockwise);
+        }
+        let rotated = self.active.rotated(to);
+        self.board.fits(&rotated).then_some(rotated)
     }
 
     fn kicked_rotation(&self, to: Rotation, clockwise: bool) -> Option<ActivePiece> {
@@ -233,6 +253,8 @@ impl Game {
         if self.move_down() {
             self.stats.add_soft_drop(1);
             self.last_action_rotation = false;
+        } else if !self.mode.uses_lock_delay() {
+            self.lock();
         }
     }
 
@@ -274,12 +296,18 @@ impl Game {
         while self.gravity_elapsed >= self.gravity {
             self.gravity_elapsed -= self.gravity;
             if !self.move_down() {
+                if !self.mode.uses_lock_delay() {
+                    self.lock();
+                }
                 break;
             }
         }
     }
 
     fn apply_lock_delay(&mut self, dt: Duration) {
+        if !self.mode.uses_lock_delay() {
+            return;
+        }
         if !self.is_grounded() {
             self.lock_elapsed = Duration::ZERO;
             return;
@@ -329,7 +357,7 @@ impl Game {
             return;
         }
         self.board.lock(&self.active);
-        let tspin = tspin::detect(&self.board, &self.active, self.last_action_rotation);
+        let tspin = self.lock_tspin();
         let rows = self.board.full_rows();
         let lines = self.board.clear_lines();
         if rows != 0 {
@@ -341,12 +369,20 @@ impl Game {
             tspin,
             perfect,
         });
-        self.gravity = gravity_interval(self.stats.level());
+        self.gravity = gravity_for(self.mode, self.stats.level());
         self.can_hold = true;
         if self.finish_if_complete() {
             return;
         }
         self.spawn_next();
+    }
+
+    fn lock_tspin(&self) -> Option<tspin::TSpin> {
+        if self.mode.scores_t_spins() {
+            tspin::detect(&self.board, &self.active, self.last_action_rotation)
+        } else {
+            None
+        }
     }
 
     fn finish_if_complete(&mut self) -> bool {
@@ -390,6 +426,20 @@ pub fn gravity_interval(level: u32) -> Duration {
     let level = level.clamp(1, 20) as f64;
     let seconds = (0.8 - (level - 1.0) * 0.007).powf(level - 1.0);
     Duration::from_secs_f64(seconds.max(0.016))
+}
+
+fn gravity_for(mode: Mode, level: u32) -> Duration {
+    if mode.is_classic() {
+        classic_gravity_interval(level)
+    } else {
+        gravity_interval(level)
+    }
+}
+
+fn classic_gravity_interval(level: u32) -> Duration {
+    const CLASSIC_GRAVITY_MILLIS: [u64; 10] = [800, 716, 633, 550, 466, 383, 300, 216, 133, 100];
+    let index = (level.saturating_sub(1) as usize).min(CLASSIC_GRAVITY_MILLIS.len() - 1);
+    Duration::from_millis(CLASSIC_GRAVITY_MILLIS[index])
 }
 
 #[cfg(test)]
