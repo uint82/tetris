@@ -65,41 +65,6 @@ impl Mode {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ModeMenu {
-    selected: usize,
-}
-
-impl ModeMenu {
-    pub const fn new() -> Self {
-        Self { selected: 0 }
-    }
-
-    pub fn at(mode: Mode) -> Self {
-        Self {
-            selected: mode.index(),
-        }
-    }
-
-    pub fn selected(&self) -> Mode {
-        Mode::ALL[self.selected]
-    }
-
-    pub fn previous(&mut self) {
-        self.selected = self.selected.checked_sub(1).unwrap_or(Mode::ALL.len() - 1);
-    }
-
-    pub fn next(&mut self) {
-        self.selected = (self.selected + 1) % Mode::ALL.len();
-    }
-}
-
-impl Default for ModeMenu {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,24 +128,5 @@ mod tests {
             Some(Duration::ZERO)
         );
         assert_eq!(Mode::Sprint.remaining_time(Duration::ZERO), None);
-    }
-
-    #[test]
-    fn menu_starts_at_marathon() {
-        assert_eq!(ModeMenu::new().selected(), Mode::Marathon);
-    }
-
-    #[test]
-    fn menu_navigation_wraps() {
-        let mut menu = ModeMenu::new();
-        menu.previous();
-        assert_eq!(menu.selected(), Mode::Ultra);
-        menu.next();
-        assert_eq!(menu.selected(), Mode::Marathon);
-    }
-
-    #[test]
-    fn menu_can_focus_a_mode() {
-        assert_eq!(ModeMenu::at(Mode::Sprint).selected(), Mode::Sprint);
     }
 }

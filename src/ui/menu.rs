@@ -4,49 +4,50 @@ use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
 use super::common::{format_best, render_too_small};
-use crate::mode::{Mode, ModeMenu};
+use crate::daily::DailyDate;
+use crate::menu::{MenuChoice, ModeMenu};
 use crate::records::PersonalBests;
 use crate::theme;
 
 const MENU_WIDTH: u16 = 42;
-const MENU_HEIGHT: u16 = 18;
+const MENU_HEIGHT: u16 = 22;
 const OPTION_WIDTH: usize = 37;
 const DESCRIPTION_INDENT: usize = 4;
 
-pub fn draw(frame: &mut Frame, menu: &ModeMenu, bests: &PersonalBests) {
+pub fn draw(frame: &mut Frame, menu: &ModeMenu, bests: &PersonalBests, daily: DailyDate) {
     let area = frame.area();
     if area.width < MENU_WIDTH || area.height < MENU_HEIGHT {
         render_too_small(frame, area, MENU_WIDTH, MENU_HEIGHT);
         return;
     }
-    let lines = menu_lines(menu, bests);
+    let lines = menu_lines(menu, bests, daily);
     let height = lines.len() as u16;
     let content = area.centered(Constraint::Length(MENU_WIDTH), Constraint::Length(height));
     frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), content);
 }
 
-fn menu_lines(menu: &ModeMenu, bests: &PersonalBests) -> Vec<Line<'static>> {
+fn menu_lines(menu: &ModeMenu, bests: &PersonalBests, daily: DailyDate) -> Vec<Line<'static>> {
     let mut lines = vec![
         Line::default(),
         Line::from("TETRIS").style(theme::title()),
         Line::from("Choose a game mode").style(theme::help()),
         Line::default(),
     ];
-    for mode in Mode::ALL {
-        lines.push(mode_line(mode, menu.selected() == mode));
-        lines.push(description_line(mode));
-        lines.push(best_line(mode, bests));
+    for choice in MenuChoice::ALL {
+        lines.push(choice_line(choice, menu.selected() == choice));
+        lines.push(description_line(choice, daily));
+        lines.push(best_line(choice, bests, daily));
         lines.push(Line::default());
     }
     lines.extend(footer_lines());
     lines
 }
 
-fn mode_line(mode: Mode, selected: bool) -> Line<'static> {
+fn choice_line(choice: MenuChoice, selected: bool) -> Line<'static> {
     let marker = if selected { "> " } else { "  " };
     let text = format!(
         "{marker}{:<width$}",
-        mode.label(),
+        choice.label(),
         width = OPTION_WIDTH - marker.len()
     );
     if selected {
@@ -56,19 +57,27 @@ fn mode_line(mode: Mode, selected: bool) -> Line<'static> {
     }
 }
 
-fn description_line(mode: Mode) -> Line<'static> {
+fn description_line(choice: MenuChoice, daily: DailyDate) -> Line<'static> {
+    let description = match choice {
+        MenuChoice::Mode(mode) => mode.description().to_string(),
+        MenuChoice::Daily => format!("Seeded run for {}", daily.iso()),
+    };
     let text = format!(
         "{:indent$}{:<width$}",
         "",
-        mode.description(),
+        description,
         indent = DESCRIPTION_INDENT,
         width = OPTION_WIDTH - DESCRIPTION_INDENT
     );
     Line::from(text).style(theme::help())
 }
 
-fn best_line(mode: Mode, bests: &PersonalBests) -> Line<'static> {
-    let best = bests.best(mode);
+fn best_line(choice: MenuChoice, bests: &PersonalBests, daily: DailyDate) -> Line<'static> {
+    let best = match choice {
+        MenuChoice::Mode(mode) => bests.best(mode),
+        MenuChoice::Daily => bests.daily(daily),
+    };
+    let mode = choice.record_mode();
     let text = match best {
         Some(record) => format!("    Best {}", format_best(mode, record)),
         None => "    Best --".to_string(),
@@ -84,7 +93,7 @@ fn best_line(mode: Mode, bests: &PersonalBests) -> Line<'static> {
 fn footer_lines() -> Vec<Line<'static>> {
     vec![
         Line::from("Up/Down select   Enter start   Q quit").style(theme::help()),
-        Line::from("1-3 quick start").style(theme::help()),
+        Line::from("1-4 quick start").style(theme::help()),
     ]
 }
 
@@ -100,8 +109,9 @@ mod tests {
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let menu = ModeMenu::new();
         let bests = PersonalBests::default();
+        let daily = DailyDate::from_days(20_751);
         terminal
-            .draw(|frame| draw(frame, &menu, &bests))
+            .draw(|frame| draw(frame, &menu, &bests, daily))
             .expect("menu renders");
     }
 
@@ -111,8 +121,9 @@ mod tests {
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let menu = ModeMenu::new();
         let bests = PersonalBests::default();
+        let daily = DailyDate::from_days(20_751);
         terminal
-            .draw(|frame| draw(frame, &menu, &bests))
+            .draw(|frame| draw(frame, &menu, &bests, daily))
             .expect("menu renders");
     }
 }

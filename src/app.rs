@@ -5,9 +5,11 @@ use ratatui::DefaultTerminal;
 use ratatui::Frame;
 use ratatui::crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 
+use crate::daily::DailyDate;
 use crate::game::{Action, Game, Status};
 use crate::input::{self, MenuAction};
-use crate::mode::{Mode, ModeMenu};
+use crate::menu::{MenuChoice, ModeMenu};
+use crate::mode::Mode;
 use crate::records::{Record, Records};
 use crate::ui;
 
@@ -69,7 +71,9 @@ impl App {
 
     fn draw(&self, frame: &mut Frame) {
         match &self.screen {
-            Screen::Menu(menu) => ui::draw_menu(frame, menu, self.records.bests()),
+            Screen::Menu(menu) => {
+                ui::draw_menu(frame, menu, self.records.bests(), DailyDate::today())
+            }
             Screen::Game(game) => {
                 ui::draw_game(frame, game.as_ref(), self.records.bests(), self.new_best)
             }
@@ -108,8 +112,8 @@ impl App {
         match action {
             MenuAction::Previous => self.apply_to_menu(ModeMenu::previous),
             MenuAction::Next => self.apply_to_menu(ModeMenu::next),
-            MenuAction::Start => self.start_selected_mode(),
-            MenuAction::StartMode(index) => self.start_mode_at(index),
+            MenuAction::Start => self.start_selected_choice(),
+            MenuAction::StartChoice(index) => self.start_choice_at(index),
             MenuAction::Quit => self.quit = true,
         }
     }
@@ -129,20 +133,24 @@ impl App {
         self.record_result_if_needed();
     }
 
-    fn start_selected_mode(&mut self) {
-        if let Some(mode) = self.menu().map(ModeMenu::selected) {
-            self.start_game(mode);
+    fn start_selected_choice(&mut self) {
+        if let Some(choice) = self.menu().map(ModeMenu::selected) {
+            self.start_choice(choice);
         }
     }
 
-    fn start_mode_at(&mut self, index: usize) {
-        if let Some(mode) = Mode::ALL.get(index).copied() {
-            self.start_game(mode);
+    fn start_choice_at(&mut self, index: usize) {
+        if let Some(choice) = MenuChoice::ALL.get(index).copied() {
+            self.start_choice(choice);
         }
     }
 
-    fn start_game(&mut self, mode: Mode) {
-        self.screen = Screen::Game(Box::new(Game::new(mode)));
+    fn start_choice(&mut self, choice: MenuChoice) {
+        let game = match choice {
+            MenuChoice::Mode(mode) => Game::new(mode),
+            MenuChoice::Daily => Game::daily(DailyDate::today()),
+        };
+        self.screen = Screen::Game(Box::new(game));
         self.result_recorded = false;
         self.new_best = false;
     }
@@ -163,6 +171,7 @@ impl App {
         let result = self.game().map(|game| {
             (
                 game.mode(),
+                game.daily_date(),
                 game.status(),
                 Record::new(
                     game.stats().score(),
@@ -172,25 +181,39 @@ impl App {
                 ),
             )
         });
-        let Some((mode, status, record)) = result else {
+        let Some((mode, daily, status, record)) = result else {
             return;
         };
         if !matches!(status, Status::GameOver | Status::Finished) {
             return;
         }
-        if mode != Mode::Sprint || status == Status::Finished {
-            self.new_best = self.records.submit(mode, record);
-        }
+        self.new_best = self.store_result(mode, daily, status, record);
         self.result_recorded = true;
     }
 
+    fn store_result(
+        &mut self,
+        mode: Mode,
+        daily: Option<DailyDate>,
+        status: Status,
+        record: Record,
+    ) -> bool {
+        if let Some(date) = daily {
+            return self.records.submit_daily(date, record);
+        }
+        if mode == Mode::Sprint && status != Status::Finished {
+            return false;
+        }
+        self.records.submit(mode, record)
+    }
+
     fn return_to_menu(&mut self) {
-        let mode = match self.game() {
-            Some(game) if game.status() != Status::Playing => Some(game.mode()),
+        let choice = match self.game() {
+            Some(game) if game.status() != Status::Playing => Some(menu_choice_for(game)),
             _ => None,
         };
-        if let Some(mode) = mode {
-            self.screen = Screen::Menu(ModeMenu::at(mode));
+        if let Some(choice) = choice {
+            self.screen = Screen::Menu(ModeMenu::at(choice));
         }
     }
 
@@ -235,90 +258,12 @@ impl App {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::countdown::COUNTDOWN_TIME;
-    use ratatui::crossterm::event::{KeyCode, KeyModifiers};
-
-    fn key(code: KeyCode) -> KeyEvent {
-        KeyEvent::new(code, KeyModifiers::NONE)
-    }
-
-    fn test_app() -> App {
-        App::with_records(Records::in_memory())
-    }
-
-    fn skip_countdown(app: &mut App) {
-        app.apply_to_game(|game| game.update(COUNTDOWN_TIME));
-    }
-
-    fn selected_menu_mode(app: &App) -> Mode {
-        app.menu().expect("app is on the menu").selected()
-    }
-
-    fn active_game(app: &App) -> &Game {
-        app.game().expect("app is in a game")
-    }
-
-    #[test]
-    fn enter_starts_the_selected_mode() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Down));
-        assert_eq!(selected_menu_mode(&app), Mode::Sprint);
-        app.handle_key(key(KeyCode::Enter));
-        assert_eq!(active_game(&app).mode(), Mode::Sprint);
-    }
-
-    #[test]
-    fn number_keys_start_modes_directly() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Char('3')));
-        assert_eq!(active_game(&app).mode(), Mode::Ultra);
-    }
-
-    #[test]
-    fn menu_is_only_available_after_the_game_stops() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Enter));
-        app.handle_key(key(KeyCode::Char('m')));
-        assert!(app.game().is_some());
-        app.handle_key(key(KeyCode::Char('p')));
-        app.handle_key(key(KeyCode::Char('m')));
-        assert_eq!(selected_menu_mode(&app), Mode::Marathon);
-    }
-
-    #[test]
-    fn menu_is_available_after_a_finished_game() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Char('3')));
-        skip_countdown(&mut app);
-        app.apply_to_game(|game| game.update(crate::mode::ULTRA_TIME));
-        app.handle_key(key(KeyCode::Char('m')));
-        assert_eq!(selected_menu_mode(&app), Mode::Ultra);
-    }
-
-    #[test]
-    fn finished_game_updates_personal_bests() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Char('3')));
-        skip_countdown(&mut app);
-        app.handle_key(key(KeyCode::Char(' ')));
-        app.update(crate::mode::ULTRA_TIME);
-        assert!(app.new_best);
-        assert!(app.records.bests().best(Mode::Ultra).is_some());
-
-        app.handle_key(key(KeyCode::Char('m')));
-        app.handle_key(key(KeyCode::Char('3')));
-        skip_countdown(&mut app);
-        app.update(crate::mode::ULTRA_TIME);
-        assert!(!app.new_best);
-    }
-
-    #[test]
-    fn q_quits_from_the_menu() {
-        let mut app = test_app();
-        app.handle_key(key(KeyCode::Char('q')));
-        assert!(app.quit);
+fn menu_choice_for(game: &Game) -> MenuChoice {
+    match game.daily_date() {
+        Some(_) => MenuChoice::Daily,
+        None => MenuChoice::Mode(game.mode()),
     }
 }
+
+#[cfg(test)]
+mod tests;

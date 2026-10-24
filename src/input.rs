@@ -7,7 +7,7 @@ pub enum MenuAction {
     Previous,
     Next,
     Start,
-    StartMode(usize),
+    StartChoice(usize),
     Quit,
 }
 
@@ -67,9 +67,10 @@ fn menu_letter_action(character: char) -> Option<MenuAction> {
     match character.to_ascii_lowercase() {
         'k' => Some(MenuAction::Previous),
         'j' => Some(MenuAction::Next),
-        '1' => Some(MenuAction::StartMode(0)),
-        '2' => Some(MenuAction::StartMode(1)),
-        '3' => Some(MenuAction::StartMode(2)),
+        '1' => Some(MenuAction::StartChoice(0)),
+        '2' => Some(MenuAction::StartChoice(1)),
+        '3' => Some(MenuAction::StartChoice(2)),
+        '4' | 'd' => Some(MenuAction::StartChoice(3)),
         'q' => Some(MenuAction::Quit),
         _ => None,
     }
@@ -151,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn menu_start_keys_select_a_mode() {
+    fn menu_start_keys_select_choices() {
         assert_eq!(menu_action(key(KeyCode::Enter)), Some(MenuAction::Start));
         assert_eq!(
             menu_action(key(KeyCode::Char(' '))),
@@ -159,15 +160,23 @@ mod tests {
         );
         assert_eq!(
             menu_action(key(KeyCode::Char('1'))),
-            Some(MenuAction::StartMode(0))
+            Some(MenuAction::StartChoice(0))
         );
         assert_eq!(
             menu_action(key(KeyCode::Char('2'))),
-            Some(MenuAction::StartMode(1))
+            Some(MenuAction::StartChoice(1))
         );
         assert_eq!(
             menu_action(key(KeyCode::Char('3'))),
-            Some(MenuAction::StartMode(2))
+            Some(MenuAction::StartChoice(2))
+        );
+        assert_eq!(
+            menu_action(key(KeyCode::Char('4'))),
+            Some(MenuAction::StartChoice(3))
+        );
+        assert_eq!(
+            menu_action(key(KeyCode::Char('d'))),
+            Some(MenuAction::StartChoice(3))
         );
     }
 
