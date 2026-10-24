@@ -6,6 +6,7 @@ use std::time::Duration;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
+use crate::daily::DailyDate;
 use crate::mode::{MODE_COUNT, Mode};
 
 const RECORDS_VERSION: u32 = 1;
@@ -45,9 +46,16 @@ impl Record {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DailyBest {
+    date: DailyDate,
+    record: Record,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PersonalBests {
     entries: [Option<Record>; MODE_COUNT],
+    daily_best: Option<DailyBest>,
 }
 
 impl PersonalBests {
@@ -61,6 +69,23 @@ impl PersonalBests {
             return false;
         }
         *slot = Some(record);
+        true
+    }
+
+    pub fn daily(&self, date: DailyDate) -> Option<Record> {
+        self.daily_best
+            .filter(|best| best.date == date)
+            .map(|best| best.record)
+    }
+
+    pub fn submit_daily(&mut self, date: DailyDate, record: Record) -> bool {
+        if let Some(best) = self.daily_best
+            && best.date == date
+            && record.score <= best.record.score
+        {
+            return false;
+        }
+        self.daily_best = Some(DailyBest { date, record });
         true
     }
 }
@@ -83,6 +108,14 @@ impl Records {
 
     pub fn submit(&mut self, mode: Mode, record: Record) -> bool {
         if !self.bests.submit(mode, record) {
+            return false;
+        }
+        self.persist();
+        true
+    }
+
+    pub fn submit_daily(&mut self, date: DailyDate, record: Record) -> bool {
+        if !self.bests.submit_daily(date, record) {
             return false;
         }
         self.persist();
@@ -143,6 +176,8 @@ struct StoredRecords {
     sprint: Option<StoredRecord>,
     #[serde(default)]
     ultra: Option<StoredRecord>,
+    #[serde(default)]
+    daily: Option<StoredDaily>,
 }
 
 impl From<&PersonalBests> for StoredRecords {
@@ -154,6 +189,7 @@ impl From<&PersonalBests> for StoredRecords {
             marathon,
             sprint,
             ultra,
+            daily: bests.daily_best.map(StoredDaily::from),
         }
     }
 }
@@ -163,6 +199,31 @@ impl From<StoredRecords> for PersonalBests {
         Self {
             entries: [stored.marathon, stored.sprint, stored.ultra]
                 .map(|record| record.map(Record::from)),
+            daily_best: stored.daily.map(DailyBest::from),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct StoredDaily {
+    day: i64,
+    record: StoredRecord,
+}
+
+impl From<DailyBest> for StoredDaily {
+    fn from(best: DailyBest) -> Self {
+        Self {
+            day: best.date.days(),
+            record: StoredRecord::from(best.record),
+        }
+    }
+}
+
+impl From<StoredDaily> for DailyBest {
+    fn from(stored: StoredDaily) -> Self {
+        Self {
+            date: DailyDate::from_days(stored.day),
+            record: Record::from(stored.record),
         }
     }
 }
@@ -236,14 +297,51 @@ mod tests {
     }
 
     #[test]
+    fn daily_records_compare_score_within_a_date() {
+        let date = DailyDate::from_days(20_751);
+        let mut bests = PersonalBests::default();
+        assert!(bests.submit_daily(date, record(500, 120)));
+        assert!(!bests.submit_daily(date, record(400, 120)));
+        assert!(bests.submit_daily(date, record(600, 120)));
+        assert_eq!(bests.daily(date), Some(record(600, 120)));
+    }
+
+    #[test]
+    fn daily_records_reset_on_a_new_date() {
+        let mut bests = PersonalBests::default();
+        let first = DailyDate::from_days(20_751);
+        let next = DailyDate::from_days(20_752);
+        bests.submit_daily(first, record(900, 120));
+        assert_eq!(bests.daily(next), None);
+        assert!(bests.submit_daily(next, record(100, 120)));
+        assert_eq!(bests.daily(first), None);
+        assert_eq!(bests.daily(next), Some(record(100, 120)));
+    }
+
+    #[test]
     fn records_round_trip_through_a_file() {
         let directory = tempdir().expect("temporary directory");
         let path = directory.path().join(RECORDS_FILE);
         let mut bests = PersonalBests::default();
         bests.submit(Mode::Marathon, record(1200, 80));
         bests.submit(Mode::Sprint, record(700, 55));
+        bests.submit_daily(DailyDate::from_days(20_751), record(1300, 120));
         save_file(&path, &bests).expect("records save");
         assert_eq!(load_file(&path), Some(bests));
+    }
+
+    #[test]
+    fn records_without_daily_data_still_load() {
+        let directory = tempdir().expect("temporary directory");
+        let path = directory.path().join(RECORDS_FILE);
+        fs::write(
+            &path,
+            "version = 1\n[marathon]\nscore = 900\nlines = 20\nlevel = 2\nmillis = 60000\n",
+        )
+        .expect("write legacy records");
+        let bests = load_file(&path).expect("legacy records load");
+        assert_eq!(bests.best(Mode::Marathon).map(Record::score), Some(900));
+        assert_eq!(bests.daily(DailyDate::from_days(20_751)), None);
     }
 
     #[test]
