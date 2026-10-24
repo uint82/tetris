@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::bag::Bag;
 use crate::board::{Board, HIDDEN_ROWS};
 use crate::countdown::Countdown;
+use crate::daily::DailyDate;
 use crate::effects::Effects;
 use crate::kicks;
 use crate::mode::Mode;
@@ -56,11 +57,19 @@ pub struct Game {
     last_action_rotation: bool,
     effects: Effects,
     countdown: Option<Countdown>,
+    daily: Option<DailyDate>,
 }
 
 impl Game {
     pub fn new(mode: Mode) -> Self {
-        let mut bag = Bag::new();
+        Self::with_bag(mode, Bag::new(), None)
+    }
+
+    pub fn daily(date: DailyDate) -> Self {
+        Self::with_bag(Mode::Ultra, Bag::seeded(date.seed()), Some(date))
+    }
+
+    fn with_bag(mode: Mode, mut bag: Bag, daily: Option<DailyDate>) -> Self {
         let mut queue = VecDeque::with_capacity(NEXT_COUNT);
         for _ in 0..NEXT_COUNT {
             queue.push_back(bag.next());
@@ -85,6 +94,7 @@ impl Game {
             last_action_rotation: false,
             effects: Effects::default(),
             countdown: mode.is_timed().then(Countdown::new),
+            daily,
         }
     }
 
@@ -130,7 +140,10 @@ impl Game {
     }
 
     pub fn restart(&mut self) {
-        *self = Self::new(self.mode);
+        *self = match self.daily {
+            Some(date) => Self::daily(date),
+            None => Self::new(self.mode),
+        };
     }
 
     pub fn board(&self) -> &Board {
@@ -175,6 +188,10 @@ impl Game {
 
     pub fn countdown_number(&self) -> Option<u32> {
         self.countdown.as_ref().map(Countdown::number)
+    }
+
+    pub fn daily_date(&self) -> Option<DailyDate> {
+        self.daily
     }
 
     pub fn next(&self) -> impl Iterator<Item = PieceKind> + '_ {

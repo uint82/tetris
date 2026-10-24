@@ -1,6 +1,7 @@
 use super::*;
 use crate::board;
 use crate::countdown::COUNTDOWN_TIME;
+use crate::daily::DailyDate;
 use crate::mode::{Mode, SPRINT_LINES, ULTRA_TIME};
 use crate::piece::Position;
 use crate::scoring::Clear;
@@ -11,6 +12,10 @@ fn new_game() -> Game {
 
 fn skip_countdown(game: &mut Game) {
     game.update(COUNTDOWN_TIME);
+}
+
+fn opening(game: &Game) -> (PieceKind, Vec<PieceKind>) {
+    (game.active().kind, game.next().collect())
 }
 
 fn filled_cells(game: &Game) -> usize {
@@ -31,6 +36,32 @@ fn place_piece(game: &mut Game, kind: PieceKind, x: i32, y: i32) {
         rotation: Rotation::Spawn,
         position: Position { x, y },
     };
+}
+
+#[test]
+fn daily_challenge_uses_a_stable_seed() {
+    let date = DailyDate::from_days(20_751);
+    let first = Game::daily(date);
+    let second = Game::daily(date);
+    assert_eq!(first.mode(), Mode::Ultra);
+    assert_eq!(first.daily_date(), Some(date));
+    assert_eq!(opening(&first), opening(&second));
+    assert_ne!(
+        opening(&first),
+        opening(&Game::daily(DailyDate::from_days(20_752)))
+    );
+}
+
+#[test]
+fn daily_restart_preserves_seed_and_date() {
+    let date = DailyDate::from_days(20_751);
+    let mut game = Game::daily(date);
+    let expected = opening(&game);
+    game.restart();
+    assert_eq!(game.mode(), Mode::Ultra);
+    assert_eq!(game.daily_date(), Some(date));
+    assert_eq!(game.countdown_number(), Some(3));
+    assert_eq!(opening(&game), expected);
 }
 
 #[test]
