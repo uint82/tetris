@@ -48,6 +48,10 @@ pub fn game_over_color() -> Color {
     Color::Red
 }
 
+pub fn finished_color() -> Color {
+    Color::Green
+}
+
 pub fn accent() -> Style {
     Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD)
 }
