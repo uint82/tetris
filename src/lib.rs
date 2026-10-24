@@ -4,6 +4,7 @@ mod board;
 mod game;
 mod input;
 mod kicks;
+mod mode;
 mod piece;
 mod scoring;
 mod theme;
