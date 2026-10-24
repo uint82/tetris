@@ -10,6 +10,7 @@ A complete terminal Tetris game built with Rust and Ratatui.
 - Seven-bag randomizer
 - Hold piece and five-piece preview queue
 - Ghost piece and lock delay with move resets
+- Line clear flashes and hard drop trails
 - T-spin detection
 - Combos, back-to-back clears, and perfect clears
 - Guideline gravity and level progression
