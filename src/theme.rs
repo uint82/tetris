@@ -40,6 +40,10 @@ pub fn help() -> Style {
     Style::new().fg(Color::DarkGray)
 }
 
+pub fn best() -> Style {
+    Style::new().fg(Color::Green)
+}
+
 pub fn pause_color() -> Color {
     Color::Yellow
 }

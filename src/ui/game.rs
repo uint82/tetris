@@ -4,11 +4,12 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
-use super::common::{format_duration, render_too_small};
+use super::common::{format_best, format_duration, render_too_small};
 use crate::board::{Board, HEIGHT, HIDDEN_ROWS, VISIBLE_HEIGHT, WIDTH};
 use crate::game::{Game, NEXT_COUNT, Status};
 use crate::mode::Mode;
 use crate::piece::{ActivePiece, PieceKind, Rotation};
+use crate::records::PersonalBests;
 use crate::scoring::ScoreState;
 use crate::theme;
 
@@ -35,7 +36,7 @@ struct ScreenLayout {
     main: Rect,
 }
 
-pub fn draw(frame: &mut Frame, game: &Game) {
+pub fn draw(frame: &mut Frame, game: &Game, bests: &PersonalBests, new_best: bool) {
     let area = frame.area();
     if area.width < TOTAL_WIDTH || area.height < TOTAL_HEIGHT {
         render_too_small(frame, area, TOTAL_WIDTH, TOTAL_HEIGHT);
@@ -47,7 +48,7 @@ pub fn draw(frame: &mut Frame, game: &Game) {
     render_next(frame, layout.next, game);
     render_stats(frame, layout.stats, game);
     render_help(frame, layout.help);
-    render_overlay(frame, layout.main, game);
+    render_overlay(frame, layout.main, game, bests, new_best);
 }
 
 fn screen_layout(area: Rect) -> ScreenLayout {
@@ -174,7 +175,13 @@ fn render_help(frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
 }
 
-fn render_overlay(frame: &mut Frame, area: Rect, game: &Game) {
+fn render_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    game: &Game,
+    bests: &PersonalBests,
+    new_best: bool,
+) {
     match game.status() {
         Status::Playing => {}
         Status::Paused => {
@@ -185,14 +192,14 @@ fn render_overlay(frame: &mut Frame, area: Rect, game: &Game) {
             area,
             " GAME OVER ",
             theme::game_over_color(),
-            result_lines(game),
+            result_lines(game, bests, new_best),
         ),
         Status::Finished => render_popup(
             frame,
             area,
             finished_title(game.mode()),
             theme::finished_color(),
-            result_lines(game),
+            result_lines(game, bests, new_best),
         ),
     }
 }
@@ -324,8 +331,19 @@ fn pause_lines() -> Vec<Line<'static>> {
     ]
 }
 
-fn result_lines(game: &Game) -> Vec<Line<'static>> {
+fn result_lines(game: &Game, bests: &PersonalBests, new_best: bool) -> Vec<Line<'static>> {
     let stats = game.stats();
+    let best_line = match bests.best(game.mode()) {
+        Some(record) => {
+            Line::from(format!("Best   {}", format_best(game.mode(), record))).style(theme::best())
+        }
+        None => Line::from("Best   --").style(theme::help()),
+    };
+    let new_best_line = if new_best {
+        Line::from("New best").style(theme::best())
+    } else {
+        Line::default()
+    };
     vec![
         Line::default(),
         Line::from(format!("Time   {}", format_duration(game.elapsed()))),
@@ -335,7 +353,8 @@ fn result_lines(game: &Game) -> Vec<Line<'static>> {
             stats.lines(),
             stats.level()
         )),
-        Line::default(),
+        best_line,
+        new_best_line,
         Line::from("Enter / R   Restart"),
         Line::from("M  Menu    Q  Quit"),
     ]
@@ -354,8 +373,9 @@ mod tests {
             let backend = TestBackend::new(TOTAL_WIDTH, TOTAL_HEIGHT);
             let mut terminal = Terminal::new(backend).expect("test terminal");
             let game = Game::new(mode);
+            let bests = PersonalBests::default();
             terminal
-                .draw(|frame| draw(frame, &game))
+                .draw(|frame| draw(frame, &game, &bests, false))
                 .expect("game renders");
         }
     }
@@ -365,8 +385,9 @@ mod tests {
         let backend = TestBackend::new(20, 10);
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let game = Game::new(Mode::Marathon);
+        let bests = PersonalBests::default();
         terminal
-            .draw(|frame| draw(frame, &game))
+            .draw(|frame| draw(frame, &game, &bests, false))
             .expect("game renders");
     }
 
@@ -375,9 +396,10 @@ mod tests {
         let backend = TestBackend::new(TOTAL_WIDTH, TOTAL_HEIGHT);
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let mut game = Game::new(Mode::Marathon);
+        let bests = PersonalBests::default();
         game.toggle_pause();
         terminal
-            .draw(|frame| draw(frame, &game))
+            .draw(|frame| draw(frame, &game, &bests, false))
             .expect("pause overlay renders");
     }
 
@@ -386,9 +408,10 @@ mod tests {
         let backend = TestBackend::new(TOTAL_WIDTH, TOTAL_HEIGHT);
         let mut terminal = Terminal::new(backend).expect("test terminal");
         let mut game = Game::new(Mode::Ultra);
+        let bests = PersonalBests::default();
         game.update(ULTRA_TIME);
         terminal
-            .draw(|frame| draw(frame, &game))
+            .draw(|frame| draw(frame, &game, &bests, true))
             .expect("finished overlay renders");
     }
 }
